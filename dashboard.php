@@ -50,6 +50,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':status' => $status,
                 ':created_by' => $_SESSION['fullname'],
             ]);
+
+            if ($report_id) {
+                $statusStmt = $pdo->prepare('UPDATE reports SET status = :status WHERE id = :report_id');
+                $statusStmt->execute([
+                    ':status' => $status,
+                    ':report_id' => $report_id,
+                ]);
+            }
         }
     } elseif ($action === 'update_case') {
         $case_id = (int) ($_POST['case_id'] ?? 0);
@@ -67,6 +75,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':status' => $status,
                 ':id' => $case_id,
             ]);
+
+            $linkStmt = $pdo->prepare('SELECT report_id FROM cases WHERE id = :id LIMIT 1');
+            $linkStmt->execute([':id' => $case_id]);
+            $linkedCase = $linkStmt->fetch();
+            if ($linkedCase && $linkedCase['report_id']) {
+                $statusStmt = $pdo->prepare('UPDATE reports SET status = :status WHERE id = :report_id');
+                $statusStmt->execute([
+                    ':status' => $status,
+                    ':report_id' => $linkedCase['report_id'],
+                ]);
+            }
         }
     } elseif ($action === 'log_evidence') {
         $case_id = (int) ($_POST['case_id'] ?? 0);

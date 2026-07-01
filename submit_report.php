@@ -47,7 +47,7 @@ $stmt->execute([
         <p>Thank you, <strong><?php echo htmlspecialchars($fullname); ?></strong>.</p>
         <p>Your incident has been logged with reference:</p>
         <div class="reference-code"><?php echo htmlspecialchars($reference); ?></div>
-        <p>Officers will review your report shortly. Keep this reference for follow-up.</p>
+        <p>Officers will review your report shortly. Use the reference above to check the latest status at <a href="track_status.php">track_status.php</a>.</p>
         <a class="button" href="index.php">Submit Another Report</a>
     </main>
 </body>

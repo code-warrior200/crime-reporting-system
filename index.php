@@ -17,6 +17,7 @@
                 </div>
             </div>
             <nav>
+                <a class="button secondary" href="track_status.php">Track Status</a>
                 <a class="button secondary" href="login.php">Officer Login</a>
             </nav>
         </div>
@@ -31,6 +32,7 @@
                     <p>Submit a digital report, get a unique tracking reference, and monitor case handling through a secure police archive.</p>
                     <div class="hero-actions">
                         <a class="button" href="#report-form">Report Now</a>
+                        <a class="button secondary" href="track_status.php">Track Status</a>
                         <a class="button secondary" href="#features">See Features</a>
                     </div>
                 </div>
