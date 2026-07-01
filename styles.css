@@ -566,6 +566,58 @@ table button {
     margin-top: 1rem;
 }
 
+.case-history {
+    display: grid;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.case-log {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 1.25rem;
+    padding: 1.25rem;
+}
+
+.case-log h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.05rem;
+}
+
+.case-log-item {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 1rem;
+    margin-top: 1rem;
+}
+
+.case-log-item:first-child {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+}
+
+.case-log-item p {
+    margin: 0.5rem 0;
+    color: #334155;
+}
+
+.case-log-item span {
+    display: block;
+    color: #64748b;
+    font-size: 0.95rem;
+}
+
+.report-actions {
+    margin-top: 1.5rem;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.report-actions .button {
+    min-width: 190px;
+}
+
 .login-shell {
     min-height: 100vh;
     display: grid;
