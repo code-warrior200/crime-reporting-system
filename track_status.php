@@ -38,6 +38,7 @@ if ($reference) {
             </label>
             <div class="form-footer full-width">
                 <button type="submit" class="button">Check Status</button>
+                <a class="button secondary" href="index.php">Back to Home</a>
             </div>
         </form>
 
