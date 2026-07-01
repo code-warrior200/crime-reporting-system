@@ -32,13 +32,66 @@ function ensureSchema(PDO $pdo): void
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+    $pdo->exec("CREATE TABLE IF NOT EXISTS cases (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        case_code VARCHAR(50) NOT NULL UNIQUE,
+        report_id INT NULL,
+        title VARCHAR(150) NOT NULL,
+        description TEXT NOT NULL,
+        assigned_officer VARCHAR(50) DEFAULT NULL,
+        status ENUM('New','Under Investigation','Resolved','Closed') NOT NULL DEFAULT 'New',
+        created_by VARCHAR(100) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (report_id) REFERENCES reports(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS case_evidence (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        case_id INT NOT NULL,
+        evidence_type VARCHAR(100) NOT NULL,
+        details TEXT NOT NULL,
+        logged_by VARCHAR(100) NOT NULL,
+        logged_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS case_updates (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        case_id INT NOT NULL,
+        update_text TEXT NOT NULL,
+        updated_by VARCHAR(100) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
     $stmt = $pdo->prepare('INSERT IGNORE INTO users (username, password, fullname, role) VALUES (:username, :password, :fullname, :role)');
-    $stmt->execute([
-        ':username' => 'NPF/2024/123456',
-        ':password' => password_hash('officer@123', PASSWORD_DEFAULT),
-        ':fullname' => 'Patrol Officer',
-        ':role' => 'officer',
-    ]);
+    $officers = [
+        ['NPF/2024/100001', 'Chief Superintendent Akin', 'supervisor'],
+        ['NPF/2024/100002', 'Detective Chief Inspector Bello', 'detective'],
+        ['NPF/2024/100003', 'Sergeant Chidi', 'officer'],
+        ['NPF/2024/100004', 'Inspector Danjuma', 'officer'],
+        ['NPF/2024/100005', 'Constable Eze', 'officer'],
+        ['NPF/2024/100006', 'Detective Sergeant Farouk', 'detective'],
+        ['NPF/2024/100007', 'Corporal Grace', 'officer'],
+        ['NPF/2024/100008', 'Station Officer Hassan', 'officer'],
+        ['NPF/2024/100009', 'Patrol Officer Ifeoma', 'officer'],
+        ['NPF/2024/100010', 'Investigations Officer James', 'officer'],
+        ['NPF/2024/100011', 'Response Officer Kelechi', 'officer'],
+        ['NPF/2024/100012', 'Traffic Officer Ladi', 'officer'],
+        ['NPF/2024/100013', 'Cybercrime Officer Musa', 'officer'],
+        ['NPF/2024/100014', 'Community Liaison Nneka', 'officer'],
+        ['NPF/2024/100015', 'Support Officer Obi', 'officer'],
+    ];
+
+    foreach ($officers as [$username, $fullname, $role]) {
+        $stmt->execute([
+            ':username' => $username,
+            ':password' => password_hash('officer@123', PASSWORD_DEFAULT),
+            ':fullname' => $fullname,
+            ':role' => $role,
+        ]);
+    }
 }
 
 try {

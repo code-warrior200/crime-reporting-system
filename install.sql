@@ -26,7 +26,22 @@ CREATE TABLE IF NOT EXISTS reports (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO users (username, password, fullname, role)
-VALUES ('NPF/2024/123456', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Patrol Officer', 'officer')
+VALUES
+    ('NPF/2024/100001', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Chief Superintendent Akin', 'supervisor'),
+    ('NPF/2024/100002', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Detective Chief Inspector Bello', 'detective'),
+    ('NPF/2024/100003', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Sergeant Chidi', 'officer'),
+    ('NPF/2024/100004', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Inspector Danjuma', 'officer'),
+    ('NPF/2024/100005', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Constable Eze', 'officer'),
+    ('NPF/2024/100006', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Detective Sergeant Farouk', 'detective'),
+    ('NPF/2024/100007', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Corporal Grace', 'officer'),
+    ('NPF/2024/100008', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Station Officer Hassan', 'officer'),
+    ('NPF/2024/100009', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Patrol Officer Ifeoma', 'officer'),
+    ('NPF/2024/100010', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Investigations Officer James', 'officer'),
+    ('NPF/2024/100011', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Response Officer Kelechi', 'officer'),
+    ('NPF/2024/100012', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Traffic Officer Ladi', 'officer'),
+    ('NPF/2024/100013', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Cybercrime Officer Musa', 'officer'),
+    ('NPF/2024/100014', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Community Liaison Nneka', 'officer'),
+    ('NPF/2024/100015', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Support Officer Obi', 'officer')
 ON DUPLICATE KEY UPDATE fullname = VALUES(fullname), role = VALUES(role);
 
--- Password for NPF/2024/123456 is: officer@123
+-- Password for all NPF/2024/1000XX accounts is: officer@123
