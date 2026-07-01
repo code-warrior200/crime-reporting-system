@@ -67,43 +67,25 @@ foreach ($reports as $report) {
                 <p class="eyebrow">Overview</p>
                 <h2>Operational readiness at a glance</h2>
                 <p>Track non-emergency reports, case status, and performance metrics from a single secure portal.</p>
+                <div class="hero-stats-list">
+                    <div class="hero-stat-card hero-stat-card--badge">
+                        <span>Total reports</span>
+                        <strong><?php echo count($reports); ?></strong>
+                    </div>
+                    <div class="hero-stat-card hero-stat-card--badge">
+                        <span>Awaiting review</span>
+                        <strong><?php echo $statusCounts['New']; ?></strong>
+                    </div>
+                    <div class="hero-stat-card hero-stat-card--badge">
+                        <span>Active investigations</span>
+                        <strong><?php echo $statusCounts['Under Investigation']; ?></strong>
+                    </div>
+                    <div class="hero-stat-card hero-stat-card--badge">
+                        <span>Closed cases</span>
+                        <strong><?php echo $statusCounts['Closed']; ?></strong>
+                    </div>
+                </div>
             </div>
-            <div class="hero-summary-grid">
-                <div class="hero-stat-card">
-                    <span>Total reports</span>
-                    <strong><?php echo count($reports); ?></strong>
-                </div>
-                <div class="hero-stat-card">
-                    <span>Awaiting review</span>
-                    <strong><?php echo $statusCounts['New']; ?></strong>
-                </div>
-                <div class="hero-stat-card">
-                    <span>Active investigations</span>
-                    <strong><?php echo $statusCounts['Under Investigation']; ?></strong>
-                </div>
-                <div class="hero-stat-card">
-                    <span>Closed cases</span>
-                    <strong><?php echo $statusCounts['Closed']; ?></strong>
-                </div>
-            </div>
-        </section>
-        <section class="dashboard-metrics">
-            <article class="metric-card">
-                <p class="metric-label">Total Reports</p>
-                <strong><?php echo count($reports); ?></strong>
-            </article>
-            <article class="metric-card">
-                <p class="metric-label">New Reports</p>
-                <strong><?php echo $statusCounts['New']; ?></strong>
-            </article>
-            <article class="metric-card">
-                <p class="metric-label">Under Investigation</p>
-                <strong><?php echo $statusCounts['Under Investigation']; ?></strong>
-            </article>
-            <article class="metric-card">
-                <p class="metric-label">Closed Cases</p>
-                <strong><?php echo $statusCounts['Closed']; ?></strong>
-            </article>
         </section>
 
         <section class="stats-panel">
@@ -131,7 +113,7 @@ foreach ($reports as $report) {
                     <p class="eyebrow">Case Records</p>
                     <h2>Recent reports</h2>
                 </div>
-                <p class="table-note">Click view to update status and officer notes.</p>
+                <p class="table-note">Click details to update status and officer notes.</p>
             </div>
             <?php if (count($reports) === 0): ?>
                 <div class="empty-state">
@@ -159,7 +141,7 @@ foreach ($reports as $report) {
                                     <td><?php echo htmlspecialchars($report['location']); ?></td>
                                     <td><?php echo htmlspecialchars($report['status']); ?></td>
                                     <td><?php echo htmlspecialchars($report['created_at']); ?></td>
-                                    <td><button class="button small" onclick="showCase(<?php echo $report['id']; ?>)">View</button></td>
+                                    <td><button class="button small" onclick="showCase(<?php echo $report['id']; ?>)">Details</button></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -167,14 +149,18 @@ foreach ($reports as $report) {
                 </div>
             <?php endif; ?>
         </section>
-    </main>
 
-    <div id="caseModal" class="modal hidden">
-        <div class="modal-content">
-            <button class="close" onclick="hideModal()">×</button>
-            <div id="modalBody"></div>
-        </div>
-    </div>
+        <section id="caseDetailsPanel" class="card details-panel hidden" aria-live="polite">
+            <div class="details-header">
+                <div>
+                    <p class="eyebrow">Case details</p>
+                    <h2 id="detailsReference">Select a report to review</h2>
+                </div>
+                <button class="button secondary small" onclick="hideDetails()">Close</button>
+            </div>
+            <div id="detailsBody"></div>
+        </section>
+    </main>
 
     <script>
         const reports = <?php echo json_encode($reports, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
@@ -183,12 +169,14 @@ foreach ($reports as $report) {
             const report = reports.find(r => r.id == id);
             if (!report) return;
 
-            const body = document.getElementById('modalBody');
+            document.getElementById('detailsReference').textContent = report.reference_code;
+            const body = document.getElementById('detailsBody');
             body.innerHTML = `
                 <div class="case-details">
                     <div class="case-meta">
-                        <h2>${report.reference_code}</h2>
                         <p><strong>Reporter:</strong> ${report.fullname}</p>
+                        <p><strong>Email:</strong> ${report.email}</p>
+                        <p><strong>Phone:</strong> ${report.phone}</p>
                         <p><strong>Category:</strong> ${report.category}</p>
                         <p><strong>Location:</strong> ${report.location}</p>
                         <p><strong>Incident Date:</strong> ${report.incident_date}</p>
@@ -218,30 +206,15 @@ foreach ($reports as $report) {
                     <button type="submit" class="button">Save Updates</button>
                 </form>
             `;
-            const modal = document.getElementById('caseModal');
-            modal.classList.remove('hidden');
-            modal.setAttribute('aria-hidden', 'false');
+            document.getElementById('caseDetailsPanel').classList.remove('hidden');
         }
 
-        function hideModal() {
-            const modal = document.getElementById('caseModal');
-            modal.classList.add('hidden');
-            modal.setAttribute('aria-hidden', 'true');
-            document.getElementById('modalBody').innerHTML = '';
+        function hideDetails() {
+            const panel = document.getElementById('caseDetailsPanel');
+            panel.classList.add('hidden');
+            document.getElementById('detailsReference').textContent = 'Select a report to review';
+            document.getElementById('detailsBody').innerHTML = '';
         }
-
-        const modalElement = document.getElementById('caseModal');
-        modalElement?.addEventListener('click', (event) => {
-            if (event.target === modalElement) {
-                hideModal();
-            }
-        });
-
-        window.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && !modalElement.classList.contains('hidden')) {
-                hideModal();
-            }
-        });
     </script>
 </body>
 </html>

@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS reports (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO users (username, password, fullname, role)
-VALUES ('officer1', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Patrol Officer', 'officer')
+VALUES ('NPF/2024/123456', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Patrol Officer', 'officer')
 ON DUPLICATE KEY UPDATE fullname = VALUES(fullname), role = VALUES(role);
 
--- Password for officer1 is: officer@123
+-- Password for NPF/2024/123456 is: officer@123

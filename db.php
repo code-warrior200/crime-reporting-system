@@ -34,7 +34,7 @@ function ensureSchema(PDO $pdo): void
 
     $stmt = $pdo->prepare('INSERT IGNORE INTO users (username, password, fullname, role) VALUES (:username, :password, :fullname, :role)');
     $stmt->execute([
-        ':username' => 'officer1',
+        ':username' => 'NPF/2024/123456',
         ':password' => password_hash('officer@123', PASSWORD_DEFAULT),
         ':fullname' => 'Patrol Officer',
         ':role' => 'officer',

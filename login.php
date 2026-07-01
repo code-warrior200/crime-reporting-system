@@ -49,9 +49,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
             <form action="login.php" method="post" class="login-form">
                 <label>
-                    Username
-                    <input type="text" name="username" required>
+                    Officer ID
+                    <input type="text" name="username" placeholder="NPF/2024/123456" required>
                 </label>
+                <p class="field-note">Use your officer identity in the format <strong>NPF/year/enlistment</strong>.</p>
                 <label>
                     Password
                     <input type="password" name="password" required>
