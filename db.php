@@ -32,7 +32,7 @@ function ensureSchema(PDO $pdo): void
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-    $pdo->exec("CREATE TABLE IF NOT EXISTS cases (
+    createOrRepairTable($pdo, 'cases', "CREATE TABLE IF NOT EXISTS cases (
         id INT AUTO_INCREMENT PRIMARY KEY,
         case_code VARCHAR(50) NOT NULL UNIQUE,
         report_id INT NULL,
@@ -46,7 +46,16 @@ function ensureSchema(PDO $pdo): void
         FOREIGN KEY (report_id) REFERENCES reports(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-    $pdo->exec("CREATE TABLE IF NOT EXISTS case_evidence (
+    createOrRepairTable($pdo, 'case_evidence', "CREATE TABLE IF NOT EXISTS case_evidence (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        case_id INT NOT NULL,
+        evidence_type VARCHAR(100) NOT NULL,
+        details TEXT NOT NULL,
+        logged_by VARCHAR(100) NOT NULL,
+        logged_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    verifyTableIntegrity($pdo, 'case_evidence', "CREATE TABLE case_evidence (
         id INT AUTO_INCREMENT PRIMARY KEY,
         case_id INT NOT NULL,
         evidence_type VARCHAR(100) NOT NULL,
@@ -56,7 +65,15 @@ function ensureSchema(PDO $pdo): void
         FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-    $pdo->exec("CREATE TABLE IF NOT EXISTS case_updates (
+    createOrRepairTable($pdo, 'case_updates', "CREATE TABLE IF NOT EXISTS case_updates (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        case_id INT NOT NULL,
+        update_text TEXT NOT NULL,
+        updated_by VARCHAR(100) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    verifyTableIntegrity($pdo, 'case_updates', "CREATE TABLE case_updates (
         id INT AUTO_INCREMENT PRIMARY KEY,
         case_id INT NOT NULL,
         update_text TEXT NOT NULL,
@@ -91,6 +108,34 @@ function ensureSchema(PDO $pdo): void
             ':fullname' => $fullname,
             ':role' => $role,
         ]);
+    }
+}
+
+function createOrRepairTable(PDO $pdo, string $table, string $ddl): void
+{
+    try {
+        $pdo->exec($ddl);
+    } catch (PDOException $e) {
+        if (stripos($e->getMessage(), "doesn't exist in engine") !== false || stripos($e->getMessage(), 'invalid database') !== false) {
+            $pdo->exec("DROP TABLE IF EXISTS `$table`");
+            $pdo->exec($ddl);
+        } else {
+            throw $e;
+        }
+    }
+}
+
+function verifyTableIntegrity(PDO $pdo, string $table, string $ddl): void
+{
+    try {
+        $pdo->query("SELECT 1 FROM `$table` LIMIT 1");
+    } catch (PDOException $e) {
+        if (stripos($e->getMessage(), "doesn't exist in engine") !== false || stripos($e->getMessage(), "can't open table") !== false) {
+            $pdo->exec("DROP TABLE IF EXISTS `$table`");
+            $pdo->exec($ddl);
+        } else {
+            throw $e;
+        }
     }
 }
 

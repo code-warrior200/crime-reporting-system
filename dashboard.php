@@ -6,11 +6,27 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-$officers = $pdo->query("SELECT username, fullname, role FROM users WHERE role IN ('supervisor','detective','officer') ORDER BY fullname")->fetchAll();
-$reports = $pdo->query('SELECT * FROM reports ORDER BY created_at DESC')->fetchAll();
-$cases = $pdo->query('SELECT c.*, r.reference_code, r.fullname AS reporter_name FROM cases c LEFT JOIN reports r ON c.report_id = r.id ORDER BY c.created_at DESC')->fetchAll();
-$caseEvidence = $pdo->query('SELECT * FROM case_evidence ORDER BY logged_at DESC')->fetchAll();
-$caseUpdates = $pdo->query('SELECT * FROM case_updates ORDER BY created_at DESC')->fetchAll();
+function safeFetchAll(PDO $pdo, string $sql): array
+{
+    try {
+        return $pdo->query($sql)->fetchAll();
+    } catch (PDOException $e) {
+        $message = $e->getMessage();
+        if (stripos($message, "doesn't exist in engine") !== false || stripos($message, "can't open table") !== false || stripos($message, 'doesn\'t exist') !== false) {
+            if (function_exists('ensureSchema')) {
+                ensureSchema($pdo);
+            }
+            return $pdo->query($sql)->fetchAll();
+        }
+        throw $e;
+    }
+}
+
+$officers = safeFetchAll($pdo, "SELECT username, fullname, role FROM users WHERE role IN ('supervisor','detective','officer') ORDER BY fullname");
+$reports = safeFetchAll($pdo, 'SELECT * FROM reports ORDER BY created_at DESC');
+$cases = safeFetchAll($pdo, 'SELECT c.*, r.reference_code, r.fullname AS reporter_name FROM cases c LEFT JOIN reports r ON c.report_id = r.id ORDER BY c.created_at DESC');
+$caseEvidence = safeFetchAll($pdo, 'SELECT * FROM case_evidence ORDER BY logged_at DESC');
+$caseUpdates = safeFetchAll($pdo, 'SELECT * FROM case_updates ORDER BY created_at DESC');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
