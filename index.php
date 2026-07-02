@@ -19,7 +19,7 @@ $resolutionRate = $reportCount > 0 ? round(($resolvedReportCount / $reportCount)
     <header class="site-header">
         <div class="header-inner container">
             <div class="brand">
-                <img src="logo.svg" alt="Crime Reporting System" class="brand-logo">
+                <span class="brand-mark">CRS</span>
                 <div>
                     <h1>Crime Reporting System</h1>
                     <p>Global-grade digital reporting and case tracking.</p>
@@ -163,13 +163,8 @@ $resolutionRate = $reportCount > 0 ? round(($resolvedReportCount / $reportCount)
 
     <footer class="footer footer-wide">
         <div class="container footer-inner">
-            <div class="footer-logo-section">
-                <img src="logo.svg" alt="Crime Reporting System" class="footer-logo">
-                <div>
-                    <p>Built for secure, accountable case handling that meets international public safety standards.</p>
-                    <small>&copy; <?php echo date('Y'); ?> Crime Reporting System</small>
-                </div>
-            </div>
+            <p>Built for secure, accountable case handling that meets international public safety standards.</p>
+            <small>&copy; <?php echo date('Y'); ?> Crime Reporting System</small>
         </div>
     </footer>
 
