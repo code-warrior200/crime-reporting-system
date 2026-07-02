@@ -1,3 +1,12 @@
+<?php
+require_once 'db.php';
+
+$reportCount = (int) $pdo->query('SELECT COUNT(*) FROM reports')->fetchColumn();
+$resolvedReportCount = (int) $pdo->query("SELECT COUNT(*) FROM reports WHERE status IN ('Resolved','Closed')")->fetchColumn();
+$caseCount = (int) $pdo->query('SELECT COUNT(*) FROM cases')->fetchColumn();
+$activeCaseCount = (int) $pdo->query("SELECT COUNT(*) FROM cases WHERE status IN ('New','Under Investigation')")->fetchColumn();
+$resolutionRate = $reportCount > 0 ? round(($resolvedReportCount / $reportCount) * 100) : 0;
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -52,6 +61,36 @@
                         <li><strong>Secure records archive</strong></li>
                     </ul>
                 </div>
+            </div>
+        </section>
+
+        <section class="container performance-section">
+            <div class="section-intro">
+                <p class="eyebrow">Resolution & performance</p>
+                <h2>Live statistics for public accountability</h2>
+                <p>See how the system is tracking incident throughput, active investigations, and case resolution progress.</p>
+            </div>
+            <div class="performance-grid">
+                <article class="performance-card">
+                    <span class="metric-label">Reports submitted</span>
+                    <strong><?php echo number_format($reportCount); ?></strong>
+                    <p>Citizens have filed reports through the digital incident portal.</p>
+                </article>
+                <article class="performance-card">
+                    <span class="metric-label">Resolution rate</span>
+                    <strong><?php echo $resolutionRate; ?>%</strong>
+                    <p>Reports already moved into resolved or closed status.</p>
+                </article>
+                <article class="performance-card">
+                    <span class="metric-label">Active cases</span>
+                    <strong><?php echo number_format($activeCaseCount); ?></strong>
+                    <p>Investigations currently being managed by officers.</p>
+                </article>
+                <article class="performance-card">
+                    <span class="metric-label">Case records</span>
+                    <strong><?php echo number_format($caseCount); ?></strong>
+                    <p>Structured case files created for follow-up and evidence handling.</p>
+                </article>
             </div>
         </section>
 
