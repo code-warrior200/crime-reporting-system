@@ -24,9 +24,56 @@ function safeFetchAll(PDO $pdo, string $sql): array
 
 $officers = safeFetchAll($pdo, "SELECT username, fullname, role FROM users WHERE role IN ('supervisor','detective','officer') ORDER BY fullname");
 $reports = safeFetchAll($pdo, 'SELECT * FROM reports ORDER BY created_at DESC');
-$cases = safeFetchAll($pdo, 'SELECT c.*, r.reference_code, r.fullname AS reporter_name FROM cases c LEFT JOIN reports r ON c.report_id = r.id ORDER BY c.created_at DESC');
+$cases = safeFetchAll($pdo, 'SELECT c.*, r.reference_code, r.fullname AS reporter_name, r.officer_notes AS report_officer_notes FROM cases c LEFT JOIN reports r ON c.report_id = r.id ORDER BY c.created_at DESC');
 $caseEvidence = safeFetchAll($pdo, 'SELECT * FROM case_evidence ORDER BY logged_at DESC');
 $caseUpdates = safeFetchAll($pdo, 'SELECT * FROM case_updates ORDER BY created_at DESC');
+
+$filterStartDate = trim($_GET['start_date'] ?? '');
+$filterEndDate = trim($_GET['end_date'] ?? '');
+$statsWhere = ['1=1'];
+$statsParams = [];
+
+if ($filterStartDate !== '') {
+    $statsWhere[] = 'incident_date >= :start_date';
+    $statsParams[':start_date'] = $filterStartDate;
+}
+
+if ($filterEndDate !== '') {
+    $statsWhere[] = 'incident_date <= :end_date';
+    $statsParams[':end_date'] = $filterEndDate;
+}
+
+$whereSql = implode(' AND ', $statsWhere);
+
+$statsByCategoryStmt = $pdo->prepare("SELECT category, COUNT(*) AS total FROM reports WHERE $whereSql GROUP BY category ORDER BY total DESC, category");
+$statsByCategoryStmt->execute($statsParams);
+$statsByCategory = $statsByCategoryStmt->fetchAll();
+
+$statsByLocationStmt = $pdo->prepare("SELECT location, COUNT(*) AS total FROM reports WHERE $whereSql GROUP BY location ORDER BY total DESC, location");
+$statsByLocationStmt->execute($statsParams);
+$statsByLocation = $statsByLocationStmt->fetchAll();
+
+$statsByPeriodStmt = $pdo->prepare("SELECT DATE_FORMAT(incident_date, '%b %Y') AS period_label, COUNT(*) AS total FROM reports WHERE $whereSql GROUP BY period_label ORDER BY MIN(incident_date)");
+$statsByPeriodStmt->execute($statsParams);
+$statsByPeriod = $statsByPeriodStmt->fetchAll();
+
+$searchQuery = trim($_GET['search'] ?? '');
+$caseStatusFilter = trim($_GET['case_status'] ?? '');
+$reportStatusFilter = trim($_GET['report_status'] ?? '');
+
+$filteredReports = array_values(array_filter($reports, function (array $report) use ($searchQuery, $reportStatusFilter): bool {
+    $needle = strtolower($searchQuery);
+    $matchesSearch = $needle === '' || strpos(strtolower($report['reference_code']), $needle) !== false || strpos(strtolower($report['fullname']), $needle) !== false || strpos(strtolower($report['category']), $needle) !== false || strpos(strtolower($report['location']), $needle) !== false || strpos(strtolower($report['status']), $needle) !== false;
+    $matchesStatus = $reportStatusFilter === '' || $report['status'] === $reportStatusFilter;
+    return $matchesSearch && $matchesStatus;
+}));
+
+$filteredCases = array_values(array_filter($cases, function (array $caseItem) use ($searchQuery, $caseStatusFilter): bool {
+    $needle = strtolower($searchQuery);
+    $matchesSearch = $needle === '' || strpos(strtolower($caseItem['case_code']), $needle) !== false || strpos(strtolower($caseItem['title']), $needle) !== false || strpos(strtolower($caseItem['assigned_officer'] ?: ''), $needle) !== false || strpos(strtolower($caseItem['reference_code'] ?: ''), $needle) !== false || strpos(strtolower($caseItem['reporter_name'] ?: ''), $needle) !== false;
+    $matchesStatus = $caseStatusFilter === '' || $caseItem['status'] === $caseStatusFilter;
+    return $matchesSearch && $matchesStatus;
+}));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -113,14 +160,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':updated_by' => $_SESSION['fullname'],
             ]);
         }
+    } elseif ($action === 'resolve_case') {
+        $case_id = (int) ($_POST['case_id'] ?? 0);
+
+        if ($case_id) {
+            $stmt = $pdo->prepare('UPDATE cases SET status = :status WHERE id = :id');
+            $stmt->execute([
+                ':status' => 'Resolved',
+                ':id' => $case_id,
+            ]);
+
+            $linkStmt = $pdo->prepare('SELECT report_id FROM cases WHERE id = :id LIMIT 1');
+            $linkStmt->execute([':id' => $case_id]);
+            $linkedCase = $linkStmt->fetch();
+            if ($linkedCase && $linkedCase['report_id']) {
+                $statusStmt = $pdo->prepare('UPDATE reports SET status = :status WHERE id = :report_id');
+                $statusStmt->execute([
+                    ':status' => 'Resolved',
+                    ':report_id' => $linkedCase['report_id'],
+                ]);
+            }
+        }
+    } elseif ($action === 'update_report_notes') {
+        $report_id = (int) ($_POST['report_id'] ?? 0);
+        $officer_notes = trim($_POST['officer_notes'] ?? '');
+        $status = trim($_POST['report_status'] ?? '');
+
+        if ($report_id) {
+            $noteStmt = $pdo->prepare('UPDATE reports SET officer_notes = :officer_notes, status = :status WHERE id = :id');
+            $noteStmt->execute([
+                ':officer_notes' => $officer_notes,
+                ':status' => $status ?: 'Under Investigation',
+                ':id' => $report_id,
+            ]);
+        }
     }
 
     header('Location: dashboard.php');
     exit;
 }
 
-$statsByCategory = $pdo->query('SELECT category, COUNT(*) AS total FROM reports GROUP BY category')->fetchAll();
-$statsByLocation = $pdo->query('SELECT location, COUNT(*) AS total FROM reports GROUP BY location')->fetchAll();
 $reportStatusCounts = [
     'New' => 0,
     'Under Investigation' => 0,
@@ -200,22 +279,63 @@ foreach ($cases as $case) {
             </div>
         </section>
 
+        <section class="card stats-filter-card">
+            <div class="section-header">
+                <div>
+                    <p class="eyebrow">Crime statistics</p>
+                    <h2>Filter incident reporting trends</h2>
+                </div>
+                <p class="table-note">Review crime volume by category, location, and month for any reporting window.</p>
+            </div>
+            <form method="get" action="dashboard.php" class="stats-filter">
+                <label>
+                    From
+                    <input type="date" name="start_date" value="<?php echo htmlspecialchars($filterStartDate); ?>">
+                </label>
+                <label>
+                    To
+                    <input type="date" name="end_date" value="<?php echo htmlspecialchars($filterEndDate); ?>">
+                </label>
+                <button type="submit" class="button">Apply filter</button>
+            </form>
+        </section>
+
         <section class="stats-panel">
             <div class="stats-card">
                 <h2>Reports by category</h2>
-                <ul>
-                    <?php foreach ($statsByCategory as $item): ?>
-                        <li><?php echo htmlspecialchars($item['category']); ?> <span><?php echo $item['total']; ?></span></li>
-                    <?php endforeach; ?>
-                </ul>
+                <?php if (count($statsByCategory) === 0): ?>
+                    <p class="empty-note">No reports match the selected period.</p>
+                <?php else: ?>
+                    <ul>
+                        <?php foreach ($statsByCategory as $item): ?>
+                            <li><?php echo htmlspecialchars($item['category']); ?> <span><?php echo $item['total']; ?></span></li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
             </div>
             <div class="stats-card">
                 <h2>Reports by location</h2>
-                <ul>
-                    <?php foreach ($statsByLocation as $item): ?>
-                        <li><?php echo htmlspecialchars($item['location']); ?> <span><?php echo $item['total']; ?></span></li>
-                    <?php endforeach; ?>
-                </ul>
+                <?php if (count($statsByLocation) === 0): ?>
+                    <p class="empty-note">No reports match the selected period.</p>
+                <?php else: ?>
+                    <ul>
+                        <?php foreach ($statsByLocation as $item): ?>
+                            <li><?php echo htmlspecialchars($item['location']); ?> <span><?php echo $item['total']; ?></span></li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+            </div>
+            <div class="stats-card full-width">
+                <h2>Reports by time period</h2>
+                <?php if (count($statsByPeriod) === 0): ?>
+                    <p class="empty-note">No reports match the selected period.</p>
+                <?php else: ?>
+                    <ul>
+                        <?php foreach ($statsByPeriod as $item): ?>
+                            <li><?php echo htmlspecialchars($item['period_label']); ?> <span><?php echo $item['total']; ?></span></li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
             </div>
         </section>
 
@@ -279,10 +399,40 @@ foreach ($cases as $case) {
                 </div>
                 <p class="table-note">Open, assign, and track investigations from one place.</p>
             </div>
-            <?php if (count($cases) === 0): ?>
+            <form method="get" action="dashboard.php" class="dashboard-search">
+                <label>
+                    Search cases or reports
+                    <input type="text" name="search" value="<?php echo htmlspecialchars($searchQuery); ?>" placeholder="Reference, case title, officer, location">
+                </label>
+                <label>
+                    Case status
+                    <select name="case_status">
+                        <option value="">All</option>
+                        <option value="New" <?php echo $caseStatusFilter === 'New' ? 'selected' : ''; ?>>New</option>
+                        <option value="Under Investigation" <?php echo $caseStatusFilter === 'Under Investigation' ? 'selected' : ''; ?>>Under Investigation</option>
+                        <option value="Resolved" <?php echo $caseStatusFilter === 'Resolved' ? 'selected' : ''; ?>>Resolved</option>
+                        <option value="Closed" <?php echo $caseStatusFilter === 'Closed' ? 'selected' : ''; ?>>Closed</option>
+                    </select>
+                </label>
+                <label>
+                    Report status
+                    <select name="report_status">
+                        <option value="">All</option>
+                        <option value="New" <?php echo $reportStatusFilter === 'New' ? 'selected' : ''; ?>>New</option>
+                        <option value="Under Investigation" <?php echo $reportStatusFilter === 'Under Investigation' ? 'selected' : ''; ?>>Under Investigation</option>
+                        <option value="Resolved" <?php echo $reportStatusFilter === 'Resolved' ? 'selected' : ''; ?>>Resolved</option>
+                        <option value="Closed" <?php echo $reportStatusFilter === 'Closed' ? 'selected' : ''; ?>>Closed</option>
+                    </select>
+                </label>
+                <div class="search-actions">
+                    <button type="submit" class="button">Search</button>
+                    <a class="button secondary" href="dashboard.php">Reset</a>
+                </div>
+            </form>
+            <?php if (count($filteredCases) === 0): ?>
                 <div class="empty-state">
-                    <p class="empty-title">No cases have been created yet.</p>
-                    <p>Use the form above to convert public reports into case records and manage every investigation.</p>
+                    <p class="empty-title">No matching case records were found.</p>
+                    <p>Try another keyword or reset the filters to review the full case queue.</p>
                 </div>
             <?php else: ?>
                 <div class="table-wrapper">
@@ -298,7 +448,7 @@ foreach ($cases as $case) {
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($cases as $case): ?>
+                            <?php foreach ($filteredCases as $case): ?>
                                 <tr>
                                     <td><?php echo htmlspecialchars($case['case_code']); ?></td>
                                     <td><?php echo htmlspecialchars($case['title']); ?></td>
@@ -424,6 +574,21 @@ foreach ($cases as $case) {
                         <textarea name="update_text" rows="3" required></textarea>
                     </label>
                     <button type="submit" class="button">Add update</button>
+                </form>
+                <form method="post" action="dashboard.php" class="case-update-form">
+                    <input type="hidden" name="action" value="update_report_notes">
+                    <input type="hidden" name="report_id" value="${selectedCase.report_id || ''}">
+                    <input type="hidden" name="report_status" value="${selectedCase.status}">
+                    <label class="full-width">
+                        Officer notes
+                        <textarea name="officer_notes" rows="3">${selectedCase.report_officer_notes ? selectedCase.report_officer_notes.replace(/"/g, '&quot;') : ''}</textarea>
+                    </label>
+                    <button type="submit" class="button secondary">Save notes</button>
+                </form>
+                <form method="post" action="dashboard.php" class="case-update-form">
+                    <input type="hidden" name="action" value="resolve_case">
+                    <input type="hidden" name="case_id" value="${selectedCase.id}">
+                    <button type="submit" class="button secondary">Resolve case</button>
                 </form>
                 <div class="report-actions">
                     <a class="button secondary" href="case_report.php?case_id=${selectedCase.id}" target="_blank">Generate crime report</a>

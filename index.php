@@ -17,11 +17,10 @@
                 </div>
             </div>
             <nav>
-                <ul class="nav-list">
+                <!-- <ul class="nav-list">
                     <li><a href="#report-form">Submit Report</a></li>
-                    <li><a href="track_status.php">Track Status</a></li>
                     <li><a href="#features">Features</a></li>
-                </ul>
+                </ul> -->
                 <div class="nav-actions">
                     <a class="button secondary" href="track_status.php">Check Status</a>
                     <a class="button" href="login.php">Officer Login</a>
@@ -40,7 +39,6 @@
                     <div class="hero-actions">
                         <a class="button" href="#report-form">Report Now</a>
                         <a class="button secondary" href="track_status.php">Track Status</a>
-                        <a class="button secondary" href="#features">See Features</a>
                     </div>
                 </div>
                 <div class="hero-panel">
