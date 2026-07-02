@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Police badge background -->
+  <circle cx="100" cy="100" r="95" fill="#1d4ed8" stroke="#0f172a" stroke-width="2"/>
+  
+  <!-- Shield shape -->
+  <path d="M 100 20 L 160 50 L 160 100 C 160 145 100 170 100 170 C 100 170 40 145 40 100 L 40 50 Z" fill="#ffffff"/>
+  
+  <!-- Badge text -->
+  <text x="100" y="120" font-size="24" font-weight="bold" text-anchor="middle" fill="#1d4ed8" font-family="Arial, sans-serif">CRS</text>
+  <text x="100" y="155" font-size="12" text-anchor="middle" fill="#1d4ed8" font-family="Arial, sans-serif" font-weight="600">CRIME REPORTING</text>
+</svg>
