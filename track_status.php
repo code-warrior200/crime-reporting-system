@@ -24,6 +24,23 @@ if ($reference) {
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <header class="site-header">
+        <div class="header-inner container">
+            <div class="brand">
+                <img src="logo.svg" alt="Crime Reporting System" class="brand-logo">
+                <div>
+                    <h1>Crime Reporting System</h1>
+                    <p>Status tracking and report lookup</p>
+                </div>
+            </div>
+            <nav>
+                <div class="nav-actions">
+                    <a class="button secondary" href="index.php">Back Home</a>
+                    <a class="button" href="login.php">Officer Login</a>
+                </div>
+            </nav>
+        </div>
+    </header>
     <main class="container card lookup-card">
         <div class="section-intro">
             <p class="eyebrow">Report tracker</p>
@@ -66,5 +83,16 @@ if ($reference) {
             <?php endif; ?>
         <?php endif; ?>
     </main>
+    <footer class="footer footer-wide">
+        <div class="container footer-inner">
+            <div class="footer-logo-section">
+                <img src="logo.svg" alt="Crime Reporting System" class="footer-logo">
+                <div>
+                    <p>Built for secure, accountable case handling that meets international public safety standards.</p>
+                    <small>&copy; <?php echo date('Y'); ?> Crime Reporting System</small>
+                </div>
+            </div>
+        </div>
+    </footer>
 </body>
 </html>

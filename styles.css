@@ -73,6 +73,12 @@ svg {
     gap: 1rem;
 }
 
+.brand-logo {
+    width: 3.2rem;
+    height: 3.2rem;
+    flex-shrink: 0;
+}
+
 .brand-mark {
     width: 3.2rem;
     height: 3.2rem;
@@ -440,6 +446,42 @@ textarea:focus {
     align-items: center;
     gap: 1rem;
     flex-wrap: wrap;
+}
+
+.footer-logo-section {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+}
+
+.footer-logo {
+    width: 2.5rem;
+    height: 2.5rem;
+    flex-shrink: 0;
+}
+
+.header-logo-section {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.header-page-logo {
+    width: 3.2rem;
+    height: 3.2rem;
+    flex-shrink: 0;
+}
+
+.page-logo {
+    width: 4rem;
+    height: 4rem;
+    margin-bottom: 1.5rem;
+}
+
+.login-logo {
+    text-align: center;
+    margin-bottom: 1rem;
 }
 
 .dashboard-metrics {

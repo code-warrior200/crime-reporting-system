@@ -237,10 +237,13 @@ foreach ($cases as $case) {
 <body>
     <header class="site-header dashboard-header">
         <div class="header-inner container dashboard-topbar">
-            <div>
-                <p class="eyebrow">Officer portal</p>
-                <h1>Case Management Dashboard</h1>
-                <p>Manage investigations, assign evidence, and generate crime reports from a secure officer console.</p>
+            <div class="header-logo-section">
+                <img src="logo.svg" alt="Crime Reporting System" class="header-page-logo">
+                <div>
+                    <p class="eyebrow">Officer portal</p>
+                    <h1>Case Management Dashboard</h1>
+                    <p>Manage investigations, assign evidence, and generate crime reports from a secure officer console.</p>
+                </div>
             </div>
             <div class="header-actions">
                 <div class="user-pill">

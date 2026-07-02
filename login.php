@@ -39,6 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <div class="login-shell">
         <div class="login-panel card">
+            <div class="login-logo">
+                <img src="logo.svg" alt="Crime Reporting System" class="page-logo">
+            </div>
             <div class="panel-header">
                 <p class="eyebrow">Officer access</p>
                 <h1>Secure Login</h1>
