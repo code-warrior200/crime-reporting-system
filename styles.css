@@ -295,11 +295,13 @@ svg {
 .performance-grid {
     display: grid;
     gap: 1.5rem;
+    margin-top: 5%;
 }
 
 .feature-grid {
     grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
     margin-bottom: 2rem;
+    margin-top: 2%;
 }
 
 .feature-card {
