@@ -20,6 +20,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['fullname'] = $user['fullname'];
             $_SESSION['role'] = $user['role'];
+            // Store officer identifier for assignment checks
+            $_SESSION['username'] = $user['username'];
             header('Location: dashboard.php');
             exit;
         }

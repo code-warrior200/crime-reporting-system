@@ -181,6 +181,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
             }
         }
+    } elseif ($action === 'close_case') {
+        $case_id = (int) ($_POST['case_id'] ?? 0);
+
+        if ($case_id) {
+            // Only allow the assigned officer to close the case.
+            $authStmt = $pdo->prepare('SELECT assigned_officer FROM cases WHERE id = :id LIMIT 1');
+            $authStmt->execute([':id' => $case_id]);
+            $caseRow = $authStmt->fetch();
+
+            $currentOfficerUsername = $_SESSION['username'] ?? '';
+            $assignedOfficerUsername = $caseRow ? ($caseRow['assigned_officer'] ?? '') : '';
+
+            if ($assignedOfficerUsername && $currentOfficerUsername && $assignedOfficerUsername === $currentOfficerUsername) {
+                $stmt = $pdo->prepare('UPDATE cases SET status = :status WHERE id = :id');
+                $stmt->execute([
+                    ':status' => 'Closed',
+                    ':id' => $case_id,
+                ]);
+
+                $linkStmt = $pdo->prepare('SELECT report_id FROM cases WHERE id = :id LIMIT 1');
+                $linkStmt->execute([':id' => $case_id]);
+                $linkedCase = $linkStmt->fetch();
+                if ($linkedCase && $linkedCase['report_id']) {
+                    $statusStmt = $pdo->prepare('UPDATE reports SET status = :status WHERE id = :report_id');
+                    $statusStmt->execute([
+                        ':status' => 'Closed',
+                        ':report_id' => $linkedCase['report_id'],
+                    ]);
+                }
+            }
+        }
     } elseif ($action === 'update_report_notes') {
         $report_id = (int) ($_POST['report_id'] ?? 0);
         $officer_notes = trim($_POST['officer_notes'] ?? '');
@@ -590,10 +621,18 @@ foreach ($cases as $case) {
                     <input type="hidden" name="case_id" value="${selectedCase.id}">
                     <button type="submit" class="button secondary">Resolve case</button>
                 </form>
+
+                <form method="post" action="dashboard.php" class="case-update-form">
+                    <input type="hidden" name="action" value="close_case">
+                    <input type="hidden" name="case_id" value="${selectedCase.id}">
+                    <button type="submit" class="button">Close case</button>
+                </form>
+
                 <div class="report-actions">
                     <a class="button secondary" href="case_report.php?case_id=${selectedCase.id}" target="_blank">Generate crime report</a>
                 </div>
             `;
+
 
             document.getElementById('caseDetailsPanel').classList.remove('hidden');
         }
