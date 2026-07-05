@@ -24,7 +24,6 @@ function safeFetchAll(PDO $pdo, string $sql): array
 
 $currentRole = strtolower((string) ($_SESSION['role'] ?? 'officer'));
 $currentOfficerUsername = (string) ($_SESSION['username'] ?? '');
-$currentOfficerName = (string) ($_SESSION['fullname'] ?? '');
 $roleLabels = [
     'supervisor' => 'Supervisor',
     'detective' => 'Detective',
@@ -56,24 +55,49 @@ function canSeeCaseRecords(string $role): bool
     return in_array($role, ['supervisor', 'detective', 'officer'], true);
 }
 
+function isAssignedOfficer(array $case, string $username): bool
+{
+    return (($case['assigned_officer'] ?? '') === $username);
+}
+
 function canViewCase(array $case, string $role, string $username): bool
 {
-    return isSupervisor($role) || (($case['assigned_officer'] ?? '') === $username);
+    return isSupervisor($role) || isAssignedOfficer($case, $username);
 }
 
 function canManageCase(array $case, string $role, string $username): bool
 {
-    return isSupervisor($role) || isDetective($role) || (($case['assigned_officer'] ?? '') === $username);
+    return isSupervisor($role) || isDetective($role) || isAssignedOfficer($case, $username);
 }
 
 function canEditCaseRecord(array $case, string $role, string $username): bool
 {
-    return isSupervisor($role) || isDetective($role) || (($case['assigned_officer'] ?? '') === $username);
+    return canManageCase($case, $role, $username);
+}
+
+function canResolveCase(array $case, string $username): bool
+{
+    return isAssignedOfficer($case, $username);
+}
+
+function canUpdateCaseProgress(array $case, string $username): bool
+{
+    return isAssignedOfficer($case, $username);
+}
+
+function canLogEvidence(array $case, string $username): bool
+{
+    return isAssignedOfficer($case, $username);
 }
 
 function canCloseCase(array $case, string $role, string $username): bool
 {
-    return isSupervisor($role) || (($case['assigned_officer'] ?? '') === $username);
+    return isSupervisor($role) && ($case['status'] ?? '') === 'Resolved';
+}
+
+function clampProgress($value): int
+{
+    return max(0, min(100, (int) $value));
 }
 
 function findCaseById(array $cases, int $caseId): ?array
@@ -125,6 +149,15 @@ $visibleReports = (isSupervisor($currentRole) || isDetective($currentRole))
     : array_values(array_filter($reports, static function (array $report) use ($visibleReportIds): bool {
         return isset($visibleReportIds[(int) $report['id']]);
     }));
+$caseLinkableReports = isSupervisor($currentRole)
+    ? $reports
+    : array_values(array_filter($reports, static function (array $report) use ($visibleReportIds): bool {
+        return isset($visibleReportIds[(int) $report['id']]);
+    }));
+$caseLinkableReportIds = [];
+foreach ($caseLinkableReports as $report) {
+    $caseLinkableReportIds[(int) $report['id']] = true;
+}
 $visibleUpdates = array_values(array_filter($caseUpdates, static function (array $entry) use ($visibleCaseIds): bool {
     return isset($visibleCaseIds[(int) $entry['case_id']]);
 }));
@@ -177,6 +210,13 @@ $filteredCases = array_values(array_filter($visibleCases, function (array $caseI
 }));
 $caseRecordsForDisplay = canSeeCaseRecords($currentRole) ? $filteredCases : [];
 $caseUpdatesForDisplay = canSeeCaseRecords($currentRole) ? $visibleUpdates : [];
+$latestUpdatesByCase = [];
+foreach ($visibleUpdates as $update) {
+    $updateCaseId = (int) $update['case_id'];
+    if (!isset($latestUpdatesByCase[$updateCaseId])) {
+        $latestUpdatesByCase[$updateCaseId] = $update;
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -186,11 +226,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $description = trim($_POST['description'] ?? '');
         $assigned_officer = canAssignCases($currentRole) ? (trim($_POST['assigned_officer'] ?? '') ?: null) : null;
         $status = $_POST['status'] ?? 'New';
+        if (!in_array($status, ['New', 'Under Investigation'], true)) {
+            $status = 'New';
+        }
+        $progress_percent = $status === 'Under Investigation' ? 10 : 0;
         $report_id = !empty($_POST['report_id']) ? (int) $_POST['report_id'] : null;
+        if ($report_id !== null && !isset($caseLinkableReportIds[$report_id])) {
+            $report_id = null;
+        }
 
         if ($title && $description) {
             $case_code = 'CASE-' . strtoupper(uniqid());
-            $stmt = $pdo->prepare('INSERT INTO cases (case_code, report_id, title, description, assigned_officer, status, created_by) VALUES (:case_code, :report_id, :title, :description, :assigned_officer, :status, :created_by)');
+            $stmt = $pdo->prepare('INSERT INTO cases (case_code, report_id, title, description, assigned_officer, status, progress_percent, created_by) VALUES (:case_code, :report_id, :title, :description, :assigned_officer, :status, :progress_percent, :created_by)');
             $stmt->execute([
                 ':case_code' => $case_code,
                 ':report_id' => $report_id,
@@ -198,6 +245,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':description' => $description,
                 ':assigned_officer' => $assigned_officer,
                 ':status' => $status,
+                ':progress_percent' => $progress_percent,
                 ':created_by' => $_SESSION['fullname'],
             ]);
 
@@ -217,22 +265,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $description = trim($_POST['description'] ?? '');
         $caseRow = findCaseById($cases, $case_id);
 
+        if ($status === 'Closed' && !canCloseCase($caseRow ?? [], $currentRole, $currentOfficerUsername)) {
+            $status = $caseRow['status'] ?? 'Under Investigation';
+        }
+
+        if ($status === 'Resolved' && ($caseRow['status'] ?? '') !== 'Resolved' && !canResolveCase($caseRow ?? [], $currentOfficerUsername)) {
+            $status = $caseRow['status'] ?? 'Under Investigation';
+        }
+
         if ($caseRow && canEditCaseRecord($caseRow, $currentRole, $currentOfficerUsername) && $title && $description) {
+            $progress_percent = clampProgress($caseRow['progress_percent'] ?? 0);
+            if (in_array($status, ['Resolved', 'Closed'], true)) {
+                $progress_percent = 100;
+            }
+
             if (canAssignCases($currentRole)) {
-                $stmt = $pdo->prepare('UPDATE cases SET title = :title, description = :description, assigned_officer = :assigned_officer, status = :status WHERE id = :id');
+                $stmt = $pdo->prepare('UPDATE cases SET title = :title, description = :description, assigned_officer = :assigned_officer, status = :status, progress_percent = :progress_percent WHERE id = :id');
                 $stmt->execute([
                     ':title' => $title,
                     ':description' => $description,
                     ':assigned_officer' => $assigned_officer,
                     ':status' => $status,
+                    ':progress_percent' => $progress_percent,
                     ':id' => $case_id,
                 ]);
             } else {
-                $stmt = $pdo->prepare('UPDATE cases SET title = :title, description = :description, status = :status WHERE id = :id');
+                $stmt = $pdo->prepare('UPDATE cases SET title = :title, description = :description, status = :status, progress_percent = :progress_percent WHERE id = :id');
                 $stmt->execute([
                     ':title' => $title,
                     ':description' => $description,
                     ':status' => $status,
+                    ':progress_percent' => $progress_percent,
                     ':id' => $case_id,
                 ]);
             }
@@ -244,6 +307,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $update_text = trim($_POST['update_text'] ?? '');
 
         $caseRow = findCaseById($cases, $case_id);
+        $progress_percent = clampProgress($_POST['progress_percent'] ?? ($caseRow['progress_percent'] ?? 0));
 
         if ($caseRow && canManageCase($caseRow, $currentRole, $currentOfficerUsername) && $update_text) {
             $stmt = $pdo->prepare('INSERT INTO case_updates (case_id, update_text, updated_by) VALUES (:case_id, :update_text, :updated_by)');
@@ -252,15 +316,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':update_text' => $update_text,
                 ':updated_by' => $_SESSION['fullname'],
             ]);
+
+            if (canUpdateCaseProgress($caseRow, $currentOfficerUsername)) {
+                $progressStmt = $pdo->prepare('UPDATE cases SET progress_percent = :progress_percent WHERE id = :id');
+                $progressStmt->execute([
+                    ':progress_percent' => $progress_percent,
+                    ':id' => $case_id,
+                ]);
+            }
+        }
+    } elseif ($action === 'log_evidence') {
+        $case_id = (int) ($_POST['case_id'] ?? 0);
+        $evidence_type = trim($_POST['evidence_type'] ?? '');
+        $details = trim($_POST['details'] ?? '');
+
+        $caseRow = findCaseById($cases, $case_id);
+
+        if ($caseRow && canLogEvidence($caseRow, $currentOfficerUsername) && $evidence_type && $details) {
+            $stmt = $pdo->prepare('INSERT INTO case_evidence (case_id, evidence_type, details, logged_by) VALUES (:case_id, :evidence_type, :details, :logged_by)');
+            $stmt->execute([
+                ':case_id' => $case_id,
+                ':evidence_type' => $evidence_type,
+                ':details' => $details,
+                ':logged_by' => $_SESSION['fullname'],
+            ]);
         }
     } elseif ($action === 'resolve_case') {
         $case_id = (int) ($_POST['case_id'] ?? 0);
         $caseRow = findCaseById($cases, $case_id);
 
-        if ($caseRow && canManageCase($caseRow, $currentRole, $currentOfficerUsername)) {
-            $stmt = $pdo->prepare('UPDATE cases SET status = :status WHERE id = :id');
+        if ($caseRow && canResolveCase($caseRow, $currentOfficerUsername)) {
+            $stmt = $pdo->prepare('UPDATE cases SET status = :status, progress_percent = :progress_percent WHERE id = :id');
             $stmt->execute([
                 ':status' => 'Resolved',
+                ':progress_percent' => 100,
                 ':id' => $case_id,
             ]);
 
@@ -271,9 +360,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $caseRow = findCaseById($cases, $case_id);
 
         if ($caseRow && canCloseCase($caseRow, $currentRole, $currentOfficerUsername)) {
-            $stmt = $pdo->prepare('UPDATE cases SET status = :status WHERE id = :id');
+            $stmt = $pdo->prepare('UPDATE cases SET status = :status, progress_percent = :progress_percent WHERE id = :id');
             $stmt->execute([
                 ':status' => 'Closed',
+                ':progress_percent' => 100,
                 ':id' => $case_id,
             ]);
 
@@ -330,6 +420,15 @@ foreach ($visibleCases as $case) {
         $caseStatusCounts[$case['status']]++;
     }
 }
+
+$averageProgress = 0;
+if (count($visibleCases) > 0) {
+    $progressTotal = 0;
+    foreach ($visibleCases as $case) {
+        $progressTotal += clampProgress($case['progress_percent'] ?? 0);
+    }
+    $averageProgress = (int) round($progressTotal / count($visibleCases));
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -380,9 +479,56 @@ foreach ($visibleCases as $case) {
                         <span>Cases created</span>
                         <strong><?php echo count($visibleCases); ?></strong>
                     </div>
+                    <?php if (isSupervisor($currentRole)): ?>
+                    <div class="hero-stat-card hero-stat-card--badge">
+                        <span>Average progress</span>
+                        <strong><?php echo $averageProgress; ?>%</strong>
+                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </section>
+
+        <?php if (isSupervisor($currentRole)): ?>
+        <section class="card supervisor-progress-card">
+            <div class="section-header">
+                <div>
+                    <p class="eyebrow">Officer progress</p>
+                    <h2>Assigned case progress</h2>
+                </div>
+                <p class="table-note">Track how far each assigned investigation has moved.</p>
+            </div>
+            <?php if (count($visibleCases) === 0): ?>
+                <p class="empty-note">No assigned cases are available for progress tracking.</p>
+            <?php else: ?>
+                <div class="progress-tracker-list">
+                    <?php foreach ($visibleCases as $case): ?>
+                        <?php
+                            $caseProgress = clampProgress($case['progress_percent'] ?? 0);
+                            $latestUpdate = $latestUpdatesByCase[(int) $case['id']] ?? null;
+                        ?>
+                        <article class="progress-tracker-item">
+                            <div class="progress-tracker-heading">
+                                <div>
+                                    <span><?php echo htmlspecialchars($case['case_code']); ?></span>
+                                    <h3><?php echo htmlspecialchars($case['title']); ?></h3>
+                                </div>
+                                <strong><?php echo $caseProgress; ?>%</strong>
+                            </div>
+                            <div class="progress-meter" aria-label="Case progress <?php echo $caseProgress; ?> percent">
+                                <span style="width: <?php echo $caseProgress; ?>%"></span>
+                            </div>
+                            <div class="progress-tracker-meta">
+                                <span><?php echo htmlspecialchars($officerNames[$case['assigned_officer']] ?? 'Unassigned'); ?></span>
+                                <span><?php echo htmlspecialchars($case['status']); ?></span>
+                            </div>
+                            <p><?php echo htmlspecialchars($latestUpdate['update_text'] ?? 'No progress update recorded yet.'); ?></p>
+                        </article>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </section>
+        <?php endif; ?>
 
         <?php if (isSupervisor($currentRole) || isDetective($currentRole)): ?>
         <section class="card stats-filter-card">
@@ -464,7 +610,7 @@ foreach ($visibleCases as $case) {
                     Related report
                     <select name="report_id">
                         <option value="">None</option>
-                        <?php foreach ($reports as $report): ?>
+                        <?php foreach ($caseLinkableReports as $report): ?>
                             <option value="<?php echo $report['id']; ?>"><?php echo htmlspecialchars($report['reference_code'] . ' - ' . $report['fullname']); ?></option>
                         <?php endforeach; ?>
                     </select>
@@ -485,8 +631,6 @@ foreach ($visibleCases as $case) {
                     <select name="status">
                         <option value="New">New</option>
                         <option value="Under Investigation">Under Investigation</option>
-                        <option value="Resolved">Resolved</option>
-                        <option value="Closed">Closed</option>
                     </select>
                 </label>
                 <label class="full-width">
@@ -554,6 +698,7 @@ foreach ($visibleCases as $case) {
                                 <th>Title</th>
                                 <th>Assigned officer</th>
                                 <th>Status</th>
+                                <th>Progress</th>
                                 <th>Linked report</th>
                                 <th>Action</th>
                             </tr>
@@ -565,6 +710,15 @@ foreach ($visibleCases as $case) {
                                     <td><?php echo htmlspecialchars($case['title']); ?></td>
                                     <td><?php echo htmlspecialchars($officerNames[$case['assigned_officer']] ?? 'Unassigned'); ?></td>
                                     <td><?php echo htmlspecialchars($case['status']); ?></td>
+                                    <td>
+                                        <?php $caseProgress = clampProgress($case['progress_percent'] ?? 0); ?>
+                                        <div class="table-progress">
+                                            <div class="progress-meter" aria-label="Case progress <?php echo $caseProgress; ?> percent">
+                                                <span style="width: <?php echo $caseProgress; ?>%"></span>
+                                            </div>
+                                            <strong><?php echo $caseProgress; ?>%</strong>
+                                        </div>
+                                    </td>
                                     <td><?php echo htmlspecialchars($case['reference_code'] ?: 'None'); ?></td>
                                     <td><button class="button small" onclick="showCase(<?php echo $case['id']; ?>)">Details</button></td>
                                 </tr>
@@ -589,7 +743,6 @@ foreach ($visibleCases as $case) {
     </main>
 
     <script>
-        const reports = <?php echo json_encode($filteredReports, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const cases = <?php echo json_encode($caseRecordsForDisplay, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const caseUpdates = <?php echo json_encode($caseUpdatesForDisplay, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const officers = <?php echo json_encode($officers, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
@@ -631,9 +784,51 @@ foreach ($visibleCases as $case) {
             const body = document.getElementById('detailsBody');
 
             const updatesList = caseUpdates.filter(item => item.case_id == selectedCase.id);
+            const progressPercent = Math.max(0, Math.min(100, parseInt(selectedCase.progress_percent ?? 0, 10) || 0));
             const isAssignedOfficer = selectedCase.assigned_officer && selectedCase.assigned_officer === currentOfficerUsername;
             const canManageCase = permissions.isSupervisor || permissions.isDetective || isAssignedOfficer;
-            const canCloseCase = permissions.isSupervisor || isAssignedOfficer;
+            const canResolveCase = isAssignedOfficer;
+            const evidenceForm = isAssignedOfficer ? `
+                <form method="post" action="dashboard.php" class="case-update-form compact-form">
+                    <div class="form-section-header">
+                        <div>
+                            <h3>Evidence</h3>
+                            <p>Log physical, digital, or witness evidence.</p>
+                        </div>
+                    </div>
+                    <input type="hidden" name="action" value="log_evidence">
+                    <input type="hidden" name="case_id" value="${escapeHtml(selectedCase.id)}">
+                    <label>
+                        Evidence type
+                        <input type="text" name="evidence_type" required>
+                    </label>
+                    <label class="full-width">
+                        Details
+                        <textarea name="details" rows="3" required></textarea>
+                    </label>
+                    <div class="form-actions full-width">
+                        <button type="submit" class="button">Log evidence</button>
+                    </div>
+                </form>
+            ` : '';
+            const progressInput = isAssignedOfficer ? `
+                    <label>
+                        Progress (%)
+                        <input type="number" name="progress_percent" min="0" max="100" value="${progressPercent}" required>
+                    </label>
+            ` : '';
+            const canCloseCase = permissions.isSupervisor && selectedCase.status === 'Resolved';
+            const resolveCaseTitle = 'Only the assigned officer can resolve this case';
+            const closeCaseTitle = permissions.isSupervisor
+                ? 'Case must be resolved before it can be closed'
+                : 'Only the Supervisor can close a resolved case';
+            const closeCaseForm = permissions.isSupervisor ? `
+                <form method="post" action="dashboard.php" class="case-update-form resolution-form">
+                    <input type="hidden" name="action" value="close_case">
+                    <input type="hidden" name="case_id" value="${escapeHtml(selectedCase.id)}">
+                    <button type="submit" class="button" ${canCloseCase ? '' : `disabled title="${closeCaseTitle}"`}>Close case</button>
+                </form>
+            ` : '';
             const assignmentField = permissions.canAssignCases
                 ? `<label>
                         Assign investigator
@@ -663,8 +858,8 @@ foreach ($visibleCases as $case) {
                         <select name="status">
                             <option value="New" ${selectedCase.status === 'New' ? 'selected' : ''}>New</option>
                             <option value="Under Investigation" ${selectedCase.status === 'Under Investigation' ? 'selected' : ''}>Under Investigation</option>
-                            <option value="Resolved" ${selectedCase.status === 'Resolved' ? 'selected' : ''}>Resolved</option>
-                            <option value="Closed" ${selectedCase.status === 'Closed' ? 'selected' : ''}>Closed</option>
+                            <option value="Resolved" ${selectedCase.status === 'Resolved' ? 'selected' : ''} ${canResolveCase || selectedCase.status === 'Resolved' ? '' : 'disabled'}>Resolved</option>
+                            <option value="Closed" ${selectedCase.status === 'Closed' ? 'selected' : ''} ${canCloseCase || selectedCase.status === 'Closed' ? '' : 'disabled'}>Closed</option>
                         </select>
                     </label>
                     <label class="full-width">
@@ -676,6 +871,7 @@ foreach ($visibleCases as $case) {
                     </div>
                 </form>
                 <div class="case-action-grid">
+                ${evidenceForm}
                 <form method="post" action="dashboard.php" class="case-update-form compact-form">
                     <div class="form-section-header">
                         <div>
@@ -689,6 +885,7 @@ foreach ($visibleCases as $case) {
                         Investigation update
                         <textarea name="update_text" rows="3" required></textarea>
                     </label>
+                    ${progressInput}
                     <div class="form-actions full-width">
                         <button type="submit" class="button">Add update</button>
                     </div>
@@ -721,14 +918,10 @@ foreach ($visibleCases as $case) {
                 <form method="post" action="dashboard.php" class="case-update-form resolution-form">
                     <input type="hidden" name="action" value="resolve_case">
                     <input type="hidden" name="case_id" value="${escapeHtml(selectedCase.id)}">
-                    <button type="submit" class="button secondary">Resolve case</button>
+                    <button type="submit" class="button secondary" ${canResolveCase ? '' : `disabled title="${resolveCaseTitle}"`}>Resolve case</button>
                 </form>
 
-                <form method="post" action="dashboard.php" class="case-update-form resolution-form">
-                    <input type="hidden" name="action" value="close_case">
-                    <input type="hidden" name="case_id" value="${escapeHtml(selectedCase.id)}">
-                    <button type="submit" class="button" ${canCloseCase ? '' : 'disabled title="Only the assigned officer or Supervisor can close this case"'}>Close case</button>
-                </form>
+                ${closeCaseForm}
                 </div>
                 </div>
             ` : '<div class="case-view-only"><strong>View only</strong><span>You can review this case, but updates are limited to the assigned officer or Supervisor.</span></div>';
@@ -743,6 +936,15 @@ foreach ($visibleCases as $case) {
                         </div>
                         <h3>${escapeHtml(selectedCase.title)}</h3>
                         <p>${escapeHtml(selectedCase.reference_code ? `Linked to public report ${selectedCase.reference_code}` : 'No linked public report')}</p>
+                        <div class="case-progress-summary">
+                            <div class="progress-label">
+                                <span>Case progress</span>
+                                <strong>${progressPercent}%</strong>
+                            </div>
+                            <div class="progress-meter" aria-label="Case progress ${progressPercent} percent">
+                                <span style="width: ${progressPercent}%"></span>
+                            </div>
+                        </div>
                         <div class="case-summary-actions">
                             <a class="button secondary small" href="case_report.php?case_id=${encodeURIComponent(selectedCase.id)}" target="_blank">Generate crime report</a>
                         </div>
@@ -759,6 +961,10 @@ foreach ($visibleCases as $case) {
                         <div>
                             <span>Created by</span>
                             <strong>${escapeHtml(selectedCase.created_by)}</strong>
+                        </div>
+                        <div>
+                            <span>Progress</span>
+                            <strong>${progressPercent}%</strong>
                         </div>
                     </aside>
                 </div>
@@ -787,6 +993,10 @@ foreach ($visibleCases as $case) {
                             <div>
                                 <dt>Assigned officer</dt>
                                 <dd>${escapeHtml(getOfficerName(selectedCase.assigned_officer))}</dd>
+                            </div>
+                            <div>
+                                <dt>Progress</dt>
+                                <dd>${progressPercent}%</dd>
                             </div>
                         </dl>
                     </aside>

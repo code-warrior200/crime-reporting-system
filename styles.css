@@ -844,6 +844,113 @@ table button {
     margin-top: 1.25rem;
 }
 
+.case-progress-summary,
+.table-progress {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.case-progress-summary {
+    margin-top: 1.25rem;
+    max-width: 520px;
+}
+
+.progress-label,
+.progress-tracker-heading,
+.progress-tracker-meta,
+.table-progress {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.progress-label span,
+.progress-tracker-heading span,
+.progress-tracker-meta,
+.table-progress strong {
+    color: #64748b;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.progress-label strong,
+.progress-tracker-heading strong {
+    color: #0f172a;
+}
+
+.progress-meter {
+    width: 100%;
+    height: 0.65rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #e2e8f0;
+}
+
+.progress-meter span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #2563eb 0%, #16a34a 100%);
+}
+
+.table-progress {
+    min-width: 150px;
+}
+
+.table-progress .progress-meter {
+    min-width: 92px;
+}
+
+.supervisor-progress-card {
+    display: grid;
+    gap: 1rem;
+}
+
+.progress-tracker-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.progress-tracker-item {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid #dfe7f1;
+    border-radius: 0.75rem;
+    background: #ffffff;
+}
+
+.progress-tracker-heading h3 {
+    margin: 0.2rem 0 0;
+    color: #0f172a;
+    font-size: 1rem;
+}
+
+.progress-tracker-heading strong {
+    font-size: 1.3rem;
+}
+
+.progress-tracker-meta {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+}
+
+.progress-tracker-meta span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.75rem;
+    padding: 0.25rem 0.55rem;
+    border-radius: 999px;
+    background: #f1f5f9;
+}
+
+.progress-tracker-item p {
+    margin: 0;
+    color: #334155;
+}
+
 .case-quick-stats {
     display: grid;
     grid-template-columns: 1fr;
@@ -1067,16 +1174,6 @@ table button {
     grid-column: 1 / -1;
 }
 
-.report-actions {
-    margin-top: 1.5rem;
-    display: flex;
-    justify-content: flex-end;
-}
-
-.report-actions .button {
-    min-width: 190px;
-}
-
 .login-shell {
     min-height: 100vh;
     display: grid;
@@ -1134,6 +1231,7 @@ table button {
 
     .dashboard-metrics,
     .stats-panel,
+    .progress-tracker-list,
     .form-grid,
     .case-details,
     .case-history {

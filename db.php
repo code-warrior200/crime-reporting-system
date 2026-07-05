@@ -40,11 +40,15 @@ function ensureSchema(PDO $pdo): void
         description TEXT NOT NULL,
         assigned_officer VARCHAR(50) DEFAULT NULL,
         status ENUM('New','Under Investigation','Resolved','Closed') NOT NULL DEFAULT 'New',
+        progress_percent TINYINT UNSIGNED NOT NULL DEFAULT 0,
         created_by VARCHAR(100) NOT NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (report_id) REFERENCES reports(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    ensureColumnExists($pdo, 'cases', 'progress_percent', 'TINYINT UNSIGNED NOT NULL DEFAULT 0');
+    $pdo->exec("UPDATE cases SET progress_percent = 100 WHERE status IN ('Resolved','Closed') AND progress_percent < 100");
+    $pdo->exec("UPDATE cases SET progress_percent = 25 WHERE status = 'Under Investigation' AND progress_percent = 0");
 
     createOrRepairTable($pdo, 'case_evidence', "CREATE TABLE IF NOT EXISTS case_evidence (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -136,6 +140,19 @@ function verifyTableIntegrity(PDO $pdo, string $table, string $ddl): void
         } else {
             throw $e;
         }
+    }
+}
+
+function ensureColumnExists(PDO $pdo, string $table, string $column, string $definition): void
+{
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table AND COLUMN_NAME = :column');
+    $stmt->execute([
+        ':table' => $table,
+        ':column' => $column,
+    ]);
+
+    if ((int) $stmt->fetchColumn() === 0) {
+        $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
     }
 }
 
