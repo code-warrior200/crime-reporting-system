@@ -23,6 +23,10 @@ function safeFetchAll(PDO $pdo, string $sql): array
 }
 
 $officers = safeFetchAll($pdo, "SELECT username, fullname, role FROM users WHERE role IN ('supervisor','detective','officer') ORDER BY fullname");
+$officerNames = [];
+foreach ($officers as $officer) {
+    $officerNames[$officer['username']] = $officer['fullname'];
+}
 $reports = safeFetchAll($pdo, 'SELECT * FROM reports ORDER BY created_at DESC');
 $cases = safeFetchAll($pdo, 'SELECT c.*, r.reference_code, r.fullname AS reporter_name, r.officer_notes AS report_officer_notes FROM cases c LEFT JOIN reports r ON c.report_id = r.id ORDER BY c.created_at DESC');
 $caseEvidence = safeFetchAll($pdo, 'SELECT * FROM case_evidence ORDER BY logged_at DESC');
@@ -389,7 +393,7 @@ foreach ($cases as $case) {
                     <select name="report_id">
                         <option value="">None</option>
                         <?php foreach ($reports as $report): ?>
-                            <option value="<?php echo $report['id']; ?>"><?php echo htmlspecialchars($report['reference_code'] . ' — ' . $report['fullname']); ?></option>
+                            <option value="<?php echo $report['id']; ?>"><?php echo htmlspecialchars($report['reference_code'] . ' - ' . $report['fullname']); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </label>
@@ -483,7 +487,7 @@ foreach ($cases as $case) {
                                 <tr>
                                     <td><?php echo htmlspecialchars($case['case_code']); ?></td>
                                     <td><?php echo htmlspecialchars($case['title']); ?></td>
-                                    <td><?php echo htmlspecialchars($case['assigned_officer'] ?: 'Unassigned'); ?></td>
+                                    <td><?php echo htmlspecialchars($officerNames[$case['assigned_officer']] ?? 'Unassigned'); ?></td>
                                     <td><?php echo htmlspecialchars($case['status']); ?></td>
                                     <td><?php echo htmlspecialchars($case['reference_code'] ?: 'None'); ?></td>
                                     <td><button class="button small" onclick="showCase(<?php echo $case['id']; ?>)">Details</button></td>
@@ -513,6 +517,20 @@ foreach ($cases as $case) {
         const evidenceEntries = <?php echo json_encode($caseEvidence, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const caseUpdates = <?php echo json_encode($caseUpdates, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const officers = <?php echo json_encode($officers, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+        const currentOfficerUsername = <?php echo json_encode($_SESSION['username'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function nl2br(value) {
+            return escapeHtml(value).replace(/\n/g, '<br>');
+        }
 
         function getOfficerName(username) {
             const officer = officers.find(o => o.username === username);
@@ -528,45 +546,46 @@ foreach ($cases as $case) {
 
             const evidenceList = evidenceEntries.filter(item => item.case_id == selectedCase.id);
             const updatesList = caseUpdates.filter(item => item.case_id == selectedCase.id);
+            const canCloseCase = selectedCase.assigned_officer && selectedCase.assigned_officer === currentOfficerUsername;
 
             body.innerHTML = `
                 <div class="case-details">
                     <div class="case-meta">
-                        <p><strong>Case code:</strong> ${selectedCase.case_code}</p>
-                        <p><strong>Title:</strong> ${selectedCase.title}</p>
-                        <p><strong>Assigned officer:</strong> ${getOfficerName(selectedCase.assigned_officer)}</p>
-                        <p><strong>Status:</strong> ${selectedCase.status}</p>
-                        <p><strong>Created by:</strong> ${selectedCase.created_by}</p>
-                        <p><strong>Linked report:</strong> ${selectedCase.reference_code ? selectedCase.reference_code : 'None'}</p>
-                        <p><strong>Reporter:</strong> ${selectedCase.reporter_name ? selectedCase.reporter_name : 'N/A'}</p>
+                        <p><strong>Case code:</strong> ${escapeHtml(selectedCase.case_code)}</p>
+                        <p><strong>Title:</strong> ${escapeHtml(selectedCase.title)}</p>
+                        <p><strong>Assigned officer:</strong> ${escapeHtml(getOfficerName(selectedCase.assigned_officer))}</p>
+                        <p><strong>Status:</strong> ${escapeHtml(selectedCase.status)}</p>
+                        <p><strong>Created by:</strong> ${escapeHtml(selectedCase.created_by)}</p>
+                        <p><strong>Linked report:</strong> ${escapeHtml(selectedCase.reference_code ? selectedCase.reference_code : 'None')}</p>
+                        <p><strong>Reporter:</strong> ${escapeHtml(selectedCase.reporter_name ? selectedCase.reporter_name : 'N/A')}</p>
                     </div>
                     <div class="case-text">
                         <h3>Case description</h3>
-                        <p>${selectedCase.description.replace(/\n/g, '<br>')}</p>
+                        <p>${nl2br(selectedCase.description)}</p>
                     </div>
                 </div>
                 <div class="case-history">
                     <div class="case-log">
                         <h3>Evidence log</h3>
-                        ${evidenceList.length ? evidenceList.map(item => `<div class="case-log-item"><strong>${item.evidence_type}</strong><p>${item.details.replace(/\n/g, '<br>')}</p><span>Logged by ${item.logged_by} on ${item.logged_at}</span></div>`).join('') : '<p class="empty-note">No evidence logged yet.</p>'}
+                        ${evidenceList.length ? evidenceList.map(item => `<div class="case-log-item"><strong>${escapeHtml(item.evidence_type)}</strong><p>${nl2br(item.details)}</p><span>Logged by ${escapeHtml(item.logged_by)} on ${escapeHtml(item.logged_at)}</span></div>`).join('') : '<p class="empty-note">No evidence logged yet.</p>'}
                     </div>
                     <div class="case-log">
                         <h3>Investigation updates</h3>
-                        ${updatesList.length ? updatesList.map(item => `<div class="case-log-item"><p>${item.update_text.replace(/\n/g, '<br>')}</p><span>Updated by ${item.updated_by} on ${item.created_at}</span></div>`).join('') : '<p class="empty-note">No updates recorded yet.</p>'}
+                        ${updatesList.length ? updatesList.map(item => `<div class="case-log-item"><p>${nl2br(item.update_text)}</p><span>Updated by ${escapeHtml(item.updated_by)} on ${escapeHtml(item.created_at)}</span></div>`).join('') : '<p class="empty-note">No updates recorded yet.</p>'}
                     </div>
                 </div>
                 <form method="post" action="dashboard.php" class="case-update-form">
                     <input type="hidden" name="action" value="update_case">
-                    <input type="hidden" name="case_id" value="${selectedCase.id}">
+                    <input type="hidden" name="case_id" value="${escapeHtml(selectedCase.id)}">
                     <label>
                         Case title
-                        <input type="text" name="title" value="${selectedCase.title.replace(/"/g, '&quot;')}" required>
+                        <input type="text" name="title" value="${escapeHtml(selectedCase.title)}" required>
                     </label>
                     <label>
                         Assign investigator
                         <select name="assigned_officer">
                             <option value="">Unassigned</option>
-                            ${officers.map(off => `<option value="${off.username}" ${off.username === selectedCase.assigned_officer ? 'selected' : ''}>${off.fullname}</option>`).join('')}
+                            ${officers.map(off => `<option value="${escapeHtml(off.username)}" ${off.username === selectedCase.assigned_officer ? 'selected' : ''}>${escapeHtml(off.fullname)}</option>`).join('')}
                         </select>
                     </label>
                     <label>
@@ -580,13 +599,13 @@ foreach ($cases as $case) {
                     </label>
                     <label class="full-width">
                         Case narrative
-                        <textarea name="description" rows="4" required>${selectedCase.description}</textarea>
+                        <textarea name="description" rows="4" required>${escapeHtml(selectedCase.description)}</textarea>
                     </label>
                     <button type="submit" class="button">Save case updates</button>
                 </form>
                 <form method="post" action="dashboard.php" class="case-update-form">
                     <input type="hidden" name="action" value="log_evidence">
-                    <input type="hidden" name="case_id" value="${selectedCase.id}">
+                    <input type="hidden" name="case_id" value="${escapeHtml(selectedCase.id)}">
                     <label>
                         Evidence type
                         <input type="text" name="evidence_type" required>
@@ -599,7 +618,7 @@ foreach ($cases as $case) {
                 </form>
                 <form method="post" action="dashboard.php" class="case-update-form">
                     <input type="hidden" name="action" value="log_update">
-                    <input type="hidden" name="case_id" value="${selectedCase.id}">
+                    <input type="hidden" name="case_id" value="${escapeHtml(selectedCase.id)}">
                     <label class="full-width">
                         Investigation update
                         <textarea name="update_text" rows="3" required></textarea>
@@ -608,28 +627,28 @@ foreach ($cases as $case) {
                 </form>
                 <form method="post" action="dashboard.php" class="case-update-form">
                     <input type="hidden" name="action" value="update_report_notes">
-                    <input type="hidden" name="report_id" value="${selectedCase.report_id || ''}">
-                    <input type="hidden" name="report_status" value="${selectedCase.status}">
+                    <input type="hidden" name="report_id" value="${escapeHtml(selectedCase.report_id || '')}">
+                    <input type="hidden" name="report_status" value="${escapeHtml(selectedCase.status)}">
                     <label class="full-width">
                         Officer notes
-                        <textarea name="officer_notes" rows="3">${selectedCase.report_officer_notes ? selectedCase.report_officer_notes.replace(/"/g, '&quot;') : ''}</textarea>
+                        <textarea name="officer_notes" rows="3">${escapeHtml(selectedCase.report_officer_notes || '')}</textarea>
                     </label>
                     <button type="submit" class="button secondary">Save notes</button>
                 </form>
                 <form method="post" action="dashboard.php" class="case-update-form">
                     <input type="hidden" name="action" value="resolve_case">
-                    <input type="hidden" name="case_id" value="${selectedCase.id}">
+                    <input type="hidden" name="case_id" value="${escapeHtml(selectedCase.id)}">
                     <button type="submit" class="button secondary">Resolve case</button>
                 </form>
 
                 <form method="post" action="dashboard.php" class="case-update-form">
                     <input type="hidden" name="action" value="close_case">
-                    <input type="hidden" name="case_id" value="${selectedCase.id}">
-                    <button type="submit" class="button">Close case</button>
+                    <input type="hidden" name="case_id" value="${escapeHtml(selectedCase.id)}">
+                    <button type="submit" class="button" ${canCloseCase ? '' : 'disabled title="Only the assigned officer can close this case"'}>Close case</button>
                 </form>
 
                 <div class="report-actions">
-                    <a class="button secondary" href="case_report.php?case_id=${selectedCase.id}" target="_blank">Generate crime report</a>
+                    <a class="button secondary" href="case_report.php?case_id=${encodeURIComponent(selectedCase.id)}" target="_blank">Generate crime report</a>
                 </div>
             `;
 
