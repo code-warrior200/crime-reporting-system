@@ -22,6 +22,80 @@ function safeFetchAll(PDO $pdo, string $sql): array
     }
 }
 
+$currentRole = strtolower((string) ($_SESSION['role'] ?? 'officer'));
+$currentOfficerUsername = (string) ($_SESSION['username'] ?? '');
+$currentOfficerName = (string) ($_SESSION['fullname'] ?? '');
+$roleLabels = [
+    'supervisor' => 'Supervisor',
+    'detective' => 'Detective',
+    'officer' => 'Officer',
+];
+
+function isSupervisor(string $role): bool
+{
+    return $role === 'supervisor';
+}
+
+function isDetective(string $role): bool
+{
+    return $role === 'detective';
+}
+
+function canCreateCases(string $role): bool
+{
+    return isSupervisor($role) || isDetective($role);
+}
+
+function canAssignCases(string $role): bool
+{
+    return isSupervisor($role) || isDetective($role);
+}
+
+function canViewCase(array $case, string $role, string $username): bool
+{
+    return isSupervisor($role) || isDetective($role) || (($case['assigned_officer'] ?? '') === $username);
+}
+
+function canManageCase(array $case, string $role, string $username): bool
+{
+    return isSupervisor($role) || isDetective($role) || (($case['assigned_officer'] ?? '') === $username);
+}
+
+function canEditCaseRecord(array $case, string $role, string $username): bool
+{
+    return isSupervisor($role) || isDetective($role) || (($case['assigned_officer'] ?? '') === $username);
+}
+
+function canCloseCase(array $case, string $role, string $username): bool
+{
+    return isSupervisor($role) || (($case['assigned_officer'] ?? '') === $username);
+}
+
+function findCaseById(array $cases, int $caseId): ?array
+{
+    foreach ($cases as $case) {
+        if ((int) $case['id'] === $caseId) {
+            return $case;
+        }
+    }
+
+    return null;
+}
+
+function syncLinkedReportStatus(PDO $pdo, int $caseId, string $status): void
+{
+    $linkStmt = $pdo->prepare('SELECT report_id FROM cases WHERE id = :id LIMIT 1');
+    $linkStmt->execute([':id' => $caseId]);
+    $linkedCase = $linkStmt->fetch();
+    if ($linkedCase && $linkedCase['report_id']) {
+        $statusStmt = $pdo->prepare('UPDATE reports SET status = :status WHERE id = :report_id');
+        $statusStmt->execute([
+            ':status' => $status,
+            ':report_id' => $linkedCase['report_id'],
+        ]);
+    }
+}
+
 $officers = safeFetchAll($pdo, "SELECT username, fullname, role FROM users WHERE role IN ('supervisor','detective','officer') ORDER BY fullname");
 $officerNames = [];
 foreach ($officers as $officer) {
@@ -31,6 +105,20 @@ $reports = safeFetchAll($pdo, 'SELECT * FROM reports ORDER BY created_at DESC');
 $cases = safeFetchAll($pdo, 'SELECT c.*, r.reference_code, r.fullname AS reporter_name, r.officer_notes AS report_officer_notes FROM cases c LEFT JOIN reports r ON c.report_id = r.id ORDER BY c.created_at DESC');
 $caseEvidence = safeFetchAll($pdo, 'SELECT * FROM case_evidence ORDER BY logged_at DESC');
 $caseUpdates = safeFetchAll($pdo, 'SELECT * FROM case_updates ORDER BY created_at DESC');
+$visibleCases = array_values(array_filter($cases, function (array $case) use ($currentRole, $currentOfficerUsername): bool {
+    return canViewCase($case, $currentRole, $currentOfficerUsername);
+}));
+$visibleReportIds = [];
+foreach ($visibleCases as $case) {
+    if (!empty($case['report_id'])) {
+        $visibleReportIds[(int) $case['report_id']] = true;
+    }
+}
+$visibleReports = (isSupervisor($currentRole) || isDetective($currentRole))
+    ? $reports
+    : array_values(array_filter($reports, static function (array $report) use ($visibleReportIds): bool {
+        return isset($visibleReportIds[(int) $report['id']]);
+    }));
 
 $filterStartDate = trim($_GET['start_date'] ?? '');
 $filterEndDate = trim($_GET['end_date'] ?? '');
@@ -65,14 +153,14 @@ $searchQuery = trim($_GET['search'] ?? '');
 $caseStatusFilter = trim($_GET['case_status'] ?? '');
 $reportStatusFilter = trim($_GET['report_status'] ?? '');
 
-$filteredReports = array_values(array_filter($reports, function (array $report) use ($searchQuery, $reportStatusFilter): bool {
+$filteredReports = array_values(array_filter($visibleReports, function (array $report) use ($searchQuery, $reportStatusFilter): bool {
     $needle = strtolower($searchQuery);
     $matchesSearch = $needle === '' || strpos(strtolower($report['reference_code']), $needle) !== false || strpos(strtolower($report['fullname']), $needle) !== false || strpos(strtolower($report['category']), $needle) !== false || strpos(strtolower($report['location']), $needle) !== false || strpos(strtolower($report['status']), $needle) !== false;
     $matchesStatus = $reportStatusFilter === '' || $report['status'] === $reportStatusFilter;
     return $matchesSearch && $matchesStatus;
 }));
 
-$filteredCases = array_values(array_filter($cases, function (array $caseItem) use ($searchQuery, $caseStatusFilter): bool {
+$filteredCases = array_values(array_filter($visibleCases, function (array $caseItem) use ($searchQuery, $caseStatusFilter): bool {
     $needle = strtolower($searchQuery);
     $matchesSearch = $needle === '' || strpos(strtolower($caseItem['case_code']), $needle) !== false || strpos(strtolower($caseItem['title']), $needle) !== false || strpos(strtolower($caseItem['assigned_officer'] ?: ''), $needle) !== false || strpos(strtolower($caseItem['reference_code'] ?: ''), $needle) !== false || strpos(strtolower($caseItem['reporter_name'] ?: ''), $needle) !== false;
     $matchesStatus = $caseStatusFilter === '' || $caseItem['status'] === $caseStatusFilter;
@@ -82,7 +170,7 @@ $filteredCases = array_values(array_filter($cases, function (array $caseItem) us
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
-    if ($action === 'create_case') {
+    if ($action === 'create_case' && canCreateCases($currentRole)) {
         $title = trim($_POST['title'] ?? '');
         $description = trim($_POST['description'] ?? '');
         $assigned_officer = trim($_POST['assigned_officer'] ?? '') ?: null;
@@ -116,34 +204,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $status = $_POST['status'] ?? 'New';
         $title = trim($_POST['title'] ?? '');
         $description = trim($_POST['description'] ?? '');
+        $caseRow = findCaseById($cases, $case_id);
 
-        if ($case_id && $title && $description) {
-            $stmt = $pdo->prepare('UPDATE cases SET title = :title, description = :description, assigned_officer = :assigned_officer, status = :status WHERE id = :id');
-            $stmt->execute([
-                ':title' => $title,
-                ':description' => $description,
-                ':assigned_officer' => $assigned_officer,
-                ':status' => $status,
-                ':id' => $case_id,
-            ]);
-
-            $linkStmt = $pdo->prepare('SELECT report_id FROM cases WHERE id = :id LIMIT 1');
-            $linkStmt->execute([':id' => $case_id]);
-            $linkedCase = $linkStmt->fetch();
-            if ($linkedCase && $linkedCase['report_id']) {
-                $statusStmt = $pdo->prepare('UPDATE reports SET status = :status WHERE id = :report_id');
-                $statusStmt->execute([
+        if ($caseRow && canEditCaseRecord($caseRow, $currentRole, $currentOfficerUsername) && $title && $description) {
+            if (canAssignCases($currentRole)) {
+                $stmt = $pdo->prepare('UPDATE cases SET title = :title, description = :description, assigned_officer = :assigned_officer, status = :status WHERE id = :id');
+                $stmt->execute([
+                    ':title' => $title,
+                    ':description' => $description,
+                    ':assigned_officer' => $assigned_officer,
                     ':status' => $status,
-                    ':report_id' => $linkedCase['report_id'],
+                    ':id' => $case_id,
+                ]);
+            } else {
+                $stmt = $pdo->prepare('UPDATE cases SET title = :title, description = :description, status = :status WHERE id = :id');
+                $stmt->execute([
+                    ':title' => $title,
+                    ':description' => $description,
+                    ':status' => $status,
+                    ':id' => $case_id,
                 ]);
             }
+
+            syncLinkedReportStatus($pdo, $case_id, $status);
         }
     } elseif ($action === 'log_evidence') {
         $case_id = (int) ($_POST['case_id'] ?? 0);
         $evidence_type = trim($_POST['evidence_type'] ?? '');
         $details = trim($_POST['details'] ?? '');
 
-        if ($case_id && $evidence_type && $details) {
+        $caseRow = findCaseById($cases, $case_id);
+
+        if ($caseRow && canManageCase($caseRow, $currentRole, $currentOfficerUsername) && $evidence_type && $details) {
             $stmt = $pdo->prepare('INSERT INTO case_evidence (case_id, evidence_type, details, logged_by) VALUES (:case_id, :evidence_type, :details, :logged_by)');
             $stmt->execute([
                 ':case_id' => $case_id,
@@ -156,7 +248,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $case_id = (int) ($_POST['case_id'] ?? 0);
         $update_text = trim($_POST['update_text'] ?? '');
 
-        if ($case_id && $update_text) {
+        $caseRow = findCaseById($cases, $case_id);
+
+        if ($caseRow && canManageCase($caseRow, $currentRole, $currentOfficerUsername) && $update_text) {
             $stmt = $pdo->prepare('INSERT INTO case_updates (case_id, update_text, updated_by) VALUES (:case_id, :update_text, :updated_by)');
             $stmt->execute([
                 ':case_id' => $case_id,
@@ -166,62 +260,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($action === 'resolve_case') {
         $case_id = (int) ($_POST['case_id'] ?? 0);
+        $caseRow = findCaseById($cases, $case_id);
 
-        if ($case_id) {
+        if ($caseRow && canManageCase($caseRow, $currentRole, $currentOfficerUsername)) {
             $stmt = $pdo->prepare('UPDATE cases SET status = :status WHERE id = :id');
             $stmt->execute([
                 ':status' => 'Resolved',
                 ':id' => $case_id,
             ]);
 
-            $linkStmt = $pdo->prepare('SELECT report_id FROM cases WHERE id = :id LIMIT 1');
-            $linkStmt->execute([':id' => $case_id]);
-            $linkedCase = $linkStmt->fetch();
-            if ($linkedCase && $linkedCase['report_id']) {
-                $statusStmt = $pdo->prepare('UPDATE reports SET status = :status WHERE id = :report_id');
-                $statusStmt->execute([
-                    ':status' => 'Resolved',
-                    ':report_id' => $linkedCase['report_id'],
-                ]);
-            }
+            syncLinkedReportStatus($pdo, $case_id, 'Resolved');
         }
     } elseif ($action === 'close_case') {
         $case_id = (int) ($_POST['case_id'] ?? 0);
+        $caseRow = findCaseById($cases, $case_id);
 
-        if ($case_id) {
-            // Only allow the assigned officer to close the case.
-            $authStmt = $pdo->prepare('SELECT assigned_officer FROM cases WHERE id = :id LIMIT 1');
-            $authStmt->execute([':id' => $case_id]);
-            $caseRow = $authStmt->fetch();
+        if ($caseRow && canCloseCase($caseRow, $currentRole, $currentOfficerUsername)) {
+            $stmt = $pdo->prepare('UPDATE cases SET status = :status WHERE id = :id');
+            $stmt->execute([
+                ':status' => 'Closed',
+                ':id' => $case_id,
+            ]);
 
-            $currentOfficerUsername = $_SESSION['username'] ?? '';
-            $assignedOfficerUsername = $caseRow ? ($caseRow['assigned_officer'] ?? '') : '';
-
-            if ($assignedOfficerUsername && $currentOfficerUsername && $assignedOfficerUsername === $currentOfficerUsername) {
-                $stmt = $pdo->prepare('UPDATE cases SET status = :status WHERE id = :id');
-                $stmt->execute([
-                    ':status' => 'Closed',
-                    ':id' => $case_id,
-                ]);
-
-                $linkStmt = $pdo->prepare('SELECT report_id FROM cases WHERE id = :id LIMIT 1');
-                $linkStmt->execute([':id' => $case_id]);
-                $linkedCase = $linkStmt->fetch();
-                if ($linkedCase && $linkedCase['report_id']) {
-                    $statusStmt = $pdo->prepare('UPDATE reports SET status = :status WHERE id = :report_id');
-                    $statusStmt->execute([
-                        ':status' => 'Closed',
-                        ':report_id' => $linkedCase['report_id'],
-                    ]);
-                }
-            }
+            syncLinkedReportStatus($pdo, $case_id, 'Closed');
         }
     } elseif ($action === 'update_report_notes') {
         $report_id = (int) ($_POST['report_id'] ?? 0);
         $officer_notes = trim($_POST['officer_notes'] ?? '');
         $status = trim($_POST['report_status'] ?? '');
+        $caseRow = null;
+        foreach ($cases as $case) {
+            if ((int) ($case['report_id'] ?? 0) === $report_id) {
+                $caseRow = $case;
+                break;
+            }
+        }
 
-        if ($report_id) {
+        if ($caseRow && canManageCase($caseRow, $currentRole, $currentOfficerUsername)) {
             $noteStmt = $pdo->prepare('UPDATE reports SET officer_notes = :officer_notes, status = :status WHERE id = :id');
             $noteStmt->execute([
                 ':officer_notes' => $officer_notes,
@@ -242,7 +317,7 @@ $reportStatusCounts = [
     'Closed' => 0,
 ];
 
-foreach ($reports as $report) {
+foreach ($visibleReports as $report) {
     if (isset($reportStatusCounts[$report['status']])) {
         $reportStatusCounts[$report['status']]++;
     }
@@ -255,7 +330,7 @@ $caseStatusCounts = [
     'Closed' => 0,
 ];
 
-foreach ($cases as $case) {
+foreach ($visibleCases as $case) {
     if (isset($caseStatusCounts[$case['status']])) {
         $caseStatusCounts[$case['status']]++;
     }
@@ -279,7 +354,7 @@ foreach ($cases as $case) {
             </div>
             <div class="header-actions">
                 <div class="user-pill">
-                    <span>Officer</span>
+                    <span><?php echo htmlspecialchars($roleLabels[$currentRole] ?? 'Officer'); ?></span>
                     <strong><?php echo htmlspecialchars($_SESSION['fullname']); ?></strong>
                 </div>
                 <a class="button secondary" href="logout.php">Logout</a>
@@ -296,7 +371,7 @@ foreach ($cases as $case) {
                 <div class="hero-stats-list">
                     <div class="hero-stat-card hero-stat-card--badge">
                         <span>Total reports</span>
-                        <strong><?php echo count($reports); ?></strong>
+                        <strong><?php echo count($visibleReports); ?></strong>
                     </div>
                     <div class="hero-stat-card hero-stat-card--badge">
                         <span>Open investigations</span>
@@ -308,12 +383,13 @@ foreach ($cases as $case) {
                     </div>
                     <div class="hero-stat-card hero-stat-card--badge">
                         <span>Cases created</span>
-                        <strong><?php echo count($cases); ?></strong>
+                        <strong><?php echo count($visibleCases); ?></strong>
                     </div>
                 </div>
             </div>
         </section>
 
+        <?php if (isSupervisor($currentRole) || isDetective($currentRole)): ?>
         <section class="card stats-filter-card">
             <div class="section-header">
                 <div>
@@ -374,6 +450,7 @@ foreach ($cases as $case) {
             </div>
         </section>
 
+        <?php if (canCreateCases($currentRole)): ?>
         <section class="card form-card">
             <div class="section-header">
                 <div>
@@ -425,6 +502,8 @@ foreach ($cases as $case) {
                 </div>
             </form>
         </section>
+        <?php endif; ?>
+        <?php endif; ?>
 
         <section class="card table-card">
             <div class="section-header">
@@ -512,12 +591,18 @@ foreach ($cases as $case) {
     </main>
 
     <script>
-        const reports = <?php echo json_encode($reports, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
-        const cases = <?php echo json_encode($cases, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+        const reports = <?php echo json_encode($filteredReports, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+        const cases = <?php echo json_encode($filteredCases, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const evidenceEntries = <?php echo json_encode($caseEvidence, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const caseUpdates = <?php echo json_encode($caseUpdates, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const officers = <?php echo json_encode($officers, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
-        const currentOfficerUsername = <?php echo json_encode($_SESSION['username'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+        const currentOfficerUsername = <?php echo json_encode($currentOfficerUsername, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+        const permissions = <?php echo json_encode([
+            'canCreateCases' => canCreateCases($currentRole),
+            'canAssignCases' => canAssignCases($currentRole),
+            'isSupervisor' => isSupervisor($currentRole),
+            'isDetective' => isDetective($currentRole),
+        ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
 
         function escapeHtml(value) {
             return String(value ?? '')
@@ -546,34 +631,19 @@ foreach ($cases as $case) {
 
             const evidenceList = evidenceEntries.filter(item => item.case_id == selectedCase.id);
             const updatesList = caseUpdates.filter(item => item.case_id == selectedCase.id);
-            const canCloseCase = selectedCase.assigned_officer && selectedCase.assigned_officer === currentOfficerUsername;
-
-            body.innerHTML = `
-                <div class="case-details">
-                    <div class="case-meta">
-                        <p><strong>Case code:</strong> ${escapeHtml(selectedCase.case_code)}</p>
-                        <p><strong>Title:</strong> ${escapeHtml(selectedCase.title)}</p>
-                        <p><strong>Assigned officer:</strong> ${escapeHtml(getOfficerName(selectedCase.assigned_officer))}</p>
-                        <p><strong>Status:</strong> ${escapeHtml(selectedCase.status)}</p>
-                        <p><strong>Created by:</strong> ${escapeHtml(selectedCase.created_by)}</p>
-                        <p><strong>Linked report:</strong> ${escapeHtml(selectedCase.reference_code ? selectedCase.reference_code : 'None')}</p>
-                        <p><strong>Reporter:</strong> ${escapeHtml(selectedCase.reporter_name ? selectedCase.reporter_name : 'N/A')}</p>
-                    </div>
-                    <div class="case-text">
-                        <h3>Case description</h3>
-                        <p>${nl2br(selectedCase.description)}</p>
-                    </div>
-                </div>
-                <div class="case-history">
-                    <div class="case-log">
-                        <h3>Evidence log</h3>
-                        ${evidenceList.length ? evidenceList.map(item => `<div class="case-log-item"><strong>${escapeHtml(item.evidence_type)}</strong><p>${nl2br(item.details)}</p><span>Logged by ${escapeHtml(item.logged_by)} on ${escapeHtml(item.logged_at)}</span></div>`).join('') : '<p class="empty-note">No evidence logged yet.</p>'}
-                    </div>
-                    <div class="case-log">
-                        <h3>Investigation updates</h3>
-                        ${updatesList.length ? updatesList.map(item => `<div class="case-log-item"><p>${nl2br(item.update_text)}</p><span>Updated by ${escapeHtml(item.updated_by)} on ${escapeHtml(item.created_at)}</span></div>`).join('') : '<p class="empty-note">No updates recorded yet.</p>'}
-                    </div>
-                </div>
+            const isAssignedOfficer = selectedCase.assigned_officer && selectedCase.assigned_officer === currentOfficerUsername;
+            const canManageCase = permissions.isSupervisor || permissions.isDetective || isAssignedOfficer;
+            const canCloseCase = permissions.isSupervisor || isAssignedOfficer;
+            const assignmentField = permissions.canAssignCases
+                ? `<label>
+                        Assign investigator
+                        <select name="assigned_officer">
+                            <option value="">Unassigned</option>
+                            ${officers.map(off => `<option value="${escapeHtml(off.username)}" ${off.username === selectedCase.assigned_officer ? 'selected' : ''}>${escapeHtml(off.fullname)}</option>`).join('')}
+                        </select>
+                    </label>`
+                : `<input type="hidden" name="assigned_officer" value="${escapeHtml(selectedCase.assigned_officer || '')}">`;
+            const actionForms = canManageCase ? `
                 <form method="post" action="dashboard.php" class="case-update-form">
                     <input type="hidden" name="action" value="update_case">
                     <input type="hidden" name="case_id" value="${escapeHtml(selectedCase.id)}">
@@ -581,13 +651,7 @@ foreach ($cases as $case) {
                         Case title
                         <input type="text" name="title" value="${escapeHtml(selectedCase.title)}" required>
                     </label>
-                    <label>
-                        Assign investigator
-                        <select name="assigned_officer">
-                            <option value="">Unassigned</option>
-                            ${officers.map(off => `<option value="${escapeHtml(off.username)}" ${off.username === selectedCase.assigned_officer ? 'selected' : ''}>${escapeHtml(off.fullname)}</option>`).join('')}
-                        </select>
-                    </label>
+                    ${assignmentField}
                     <label>
                         Status
                         <select name="status">
@@ -644,8 +708,37 @@ foreach ($cases as $case) {
                 <form method="post" action="dashboard.php" class="case-update-form">
                     <input type="hidden" name="action" value="close_case">
                     <input type="hidden" name="case_id" value="${escapeHtml(selectedCase.id)}">
-                    <button type="submit" class="button" ${canCloseCase ? '' : 'disabled title="Only the assigned officer can close this case"'}>Close case</button>
+                    <button type="submit" class="button" ${canCloseCase ? '' : 'disabled title="Only the assigned officer or Supervisor can close this case"'}>Close case</button>
                 </form>
+            ` : '<p class="empty-note">You can view this case, but it is not assigned to you.</p>';
+
+            body.innerHTML = `
+                <div class="case-details">
+                    <div class="case-meta">
+                        <p><strong>Case code:</strong> ${escapeHtml(selectedCase.case_code)}</p>
+                        <p><strong>Title:</strong> ${escapeHtml(selectedCase.title)}</p>
+                        <p><strong>Assigned officer:</strong> ${escapeHtml(getOfficerName(selectedCase.assigned_officer))}</p>
+                        <p><strong>Status:</strong> ${escapeHtml(selectedCase.status)}</p>
+                        <p><strong>Created by:</strong> ${escapeHtml(selectedCase.created_by)}</p>
+                        <p><strong>Linked report:</strong> ${escapeHtml(selectedCase.reference_code ? selectedCase.reference_code : 'None')}</p>
+                        <p><strong>Reporter:</strong> ${escapeHtml(selectedCase.reporter_name ? selectedCase.reporter_name : 'N/A')}</p>
+                    </div>
+                    <div class="case-text">
+                        <h3>Case description</h3>
+                        <p>${nl2br(selectedCase.description)}</p>
+                    </div>
+                </div>
+                <div class="case-history">
+                    <div class="case-log">
+                        <h3>Evidence log</h3>
+                        ${evidenceList.length ? evidenceList.map(item => `<div class="case-log-item"><strong>${escapeHtml(item.evidence_type)}</strong><p>${nl2br(item.details)}</p><span>Logged by ${escapeHtml(item.logged_by)} on ${escapeHtml(item.logged_at)}</span></div>`).join('') : '<p class="empty-note">No evidence logged yet.</p>'}
+                    </div>
+                    <div class="case-log">
+                        <h3>Investigation updates</h3>
+                        ${updatesList.length ? updatesList.map(item => `<div class="case-log-item"><p>${nl2br(item.update_text)}</p><span>Updated by ${escapeHtml(item.updated_by)} on ${escapeHtml(item.created_at)}</span></div>`).join('') : '<p class="empty-note">No updates recorded yet.</p>'}
+                    </div>
+                </div>
+                ${actionForms}
 
                 <div class="report-actions">
                     <a class="button secondary" href="case_report.php?case_id=${encodeURIComponent(selectedCase.id)}" target="_blank">Generate crime report</a>

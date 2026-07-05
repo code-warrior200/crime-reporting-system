@@ -1,13 +1,15 @@
 <?php
 require_once 'db.php';
+require_once 'smtp_mailer.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: index.php');
     exit;
 }
 
-function sendReferenceEmail(string $to, string $fullname, string $reference): bool
+function sendReferenceEmail(string $to, string $fullname, string $reference, ?string &$error = null): bool
 {
+    $error = null;
     $subject = 'Your crime report tracking reference';
     $trackUrl = 'http://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . dirname($_SERVER['PHP_SELF']) . '/track_status.php';
     $trackUrl = str_replace('\\', '/', $trackUrl);
@@ -22,13 +24,21 @@ function sendReferenceEmail(string $to, string $fullname, string $reference): bo
     $message .= "Please keep this reference safe for follow-up.\n\n";
     $message .= "Crime Reporting System";
 
-    $headers = [
-        'From: Crime Reporting System <no-reply@crime-reporting-system.local>',
-        'Reply-To: no-reply@crime-reporting-system.local',
-        'Content-Type: text/plain; charset=UTF-8',
-    ];
+    $mailer = new SmtpMailer(loadSmtpConfig());
+    $sent = $mailer->send($to, $fullname, $subject, $message);
 
-    return @mail($to, $subject, $message, implode("\r\n", $headers));
+    if (!$sent) {
+        $error = $mailer->getLastError();
+        error_log('Tracking reference email failed: ' . $error);
+    }
+
+    return $sent;
+}
+
+function isLocalRequest(): bool
+{
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    return str_starts_with($host, 'localhost') || str_starts_with($host, '127.0.0.1');
 }
 
 $fullname = trim($_POST['fullname'] ?? '');
@@ -62,7 +72,8 @@ $stmt->execute([
     ':description' => $description,
 ]);
 
-$emailSent = sendReferenceEmail($email, $fullname, $reference);
+$emailError = null;
+$emailSent = sendReferenceEmail($email, $fullname, $reference, $emailError);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -82,8 +93,11 @@ $emailSent = sendReferenceEmail($email, $fullname, $reference);
             <p>A copy of this tracking reference code has been sent to <?php echo htmlspecialchars($email); ?>.</p>
         <?php else: ?>
             <p class="alert">The report was saved, but the email could not be sent by the server. Please copy and keep your tracking reference code.</p>
+            <?php if ($emailError && isLocalRequest()): ?>
+                <p class="alert">SMTP setup issue: <?php echo htmlspecialchars($emailError); ?></p>
+            <?php endif; ?>
         <?php endif; ?>
-        <p>Officers will review your report shortly. Use the reference above to check the latest status at <a href="track_status.php">track_status.php</a>.</p>
+        <p>Officers will review your report shortly.</p>
         <a class="button" href="index.php">Submit Another Report</a>
     </main>
 </body>
