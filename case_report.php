@@ -18,6 +18,14 @@ if (!$case) {
     exit;
 }
 
+$currentRole = strtolower((string) ($_SESSION['role'] ?? 'officer'));
+$currentOfficerUsername = (string) ($_SESSION['username'] ?? '');
+if ($currentRole !== 'supervisor' && (($case['assigned_officer'] ?? '') !== $currentOfficerUsername)) {
+    http_response_code(403);
+    echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Access Denied</title></head><body><h1>Access denied</h1><p>You can only view cases assigned to you by the Supervisor.</p></body></html>';
+    exit;
+}
+
 $evidence = $pdo->prepare('SELECT * FROM case_evidence WHERE case_id = :case_id ORDER BY logged_at DESC');
 $evidence->execute([':case_id' => $case_id]);
 $evidenceEntries = $evidence->fetchAll();
