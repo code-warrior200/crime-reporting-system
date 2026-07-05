@@ -108,7 +108,6 @@ foreach ($officers as $officer) {
 }
 $reports = safeFetchAll($pdo, 'SELECT * FROM reports ORDER BY created_at DESC');
 $cases = safeFetchAll($pdo, 'SELECT c.*, r.reference_code, r.fullname AS reporter_name, r.officer_notes AS report_officer_notes FROM cases c LEFT JOIN reports r ON c.report_id = r.id ORDER BY c.created_at DESC');
-$caseEvidence = safeFetchAll($pdo, 'SELECT * FROM case_evidence ORDER BY logged_at DESC');
 $caseUpdates = safeFetchAll($pdo, 'SELECT * FROM case_updates ORDER BY created_at DESC');
 $visibleCases = array_values(array_filter($cases, function (array $case) use ($currentRole, $currentOfficerUsername): bool {
     return canViewCase($case, $currentRole, $currentOfficerUsername);
@@ -126,9 +125,6 @@ $visibleReports = (isSupervisor($currentRole) || isDetective($currentRole))
     : array_values(array_filter($reports, static function (array $report) use ($visibleReportIds): bool {
         return isset($visibleReportIds[(int) $report['id']]);
     }));
-$visibleEvidence = array_values(array_filter($caseEvidence, static function (array $entry) use ($visibleCaseIds): bool {
-    return isset($visibleCaseIds[(int) $entry['case_id']]);
-}));
 $visibleUpdates = array_values(array_filter($caseUpdates, static function (array $entry) use ($visibleCaseIds): bool {
     return isset($visibleCaseIds[(int) $entry['case_id']]);
 }));
@@ -180,7 +176,6 @@ $filteredCases = array_values(array_filter($visibleCases, function (array $caseI
     return $matchesSearch && $matchesStatus;
 }));
 $caseRecordsForDisplay = canSeeCaseRecords($currentRole) ? $filteredCases : [];
-$caseEvidenceForDisplay = canSeeCaseRecords($currentRole) ? $visibleEvidence : [];
 $caseUpdatesForDisplay = canSeeCaseRecords($currentRole) ? $visibleUpdates : [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -243,22 +238,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             syncLinkedReportStatus($pdo, $case_id, $status);
-        }
-    } elseif ($action === 'log_evidence') {
-        $case_id = (int) ($_POST['case_id'] ?? 0);
-        $evidence_type = trim($_POST['evidence_type'] ?? '');
-        $details = trim($_POST['details'] ?? '');
-
-        $caseRow = findCaseById($cases, $case_id);
-
-        if ($caseRow && canManageCase($caseRow, $currentRole, $currentOfficerUsername) && $evidence_type && $details) {
-            $stmt = $pdo->prepare('INSERT INTO case_evidence (case_id, evidence_type, details, logged_by) VALUES (:case_id, :evidence_type, :details, :logged_by)');
-            $stmt->execute([
-                ':case_id' => $case_id,
-                ':evidence_type' => $evidence_type,
-                ':details' => $details,
-                ':logged_by' => $_SESSION['fullname'],
-            ]);
         }
     } elseif ($action === 'log_update') {
         $case_id = (int) ($_POST['case_id'] ?? 0);
@@ -530,7 +509,6 @@ foreach ($visibleCases as $case) {
                     <p class="eyebrow">Case records</p>
                     <h2>Active investigations</h2>
                 </div>
-                <p class="table-note">Open, assign, and track investigations from one place.</p>
             </div>
             <form method="get" action="dashboard.php" class="dashboard-search">
                 <label>
@@ -613,7 +591,6 @@ foreach ($visibleCases as $case) {
     <script>
         const reports = <?php echo json_encode($filteredReports, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const cases = <?php echo json_encode($caseRecordsForDisplay, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
-        const evidenceEntries = <?php echo json_encode($caseEvidenceForDisplay, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const caseUpdates = <?php echo json_encode($caseUpdatesForDisplay, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const officers = <?php echo json_encode($officers, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const currentOfficerUsername = <?php echo json_encode($currentOfficerUsername, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
@@ -653,7 +630,6 @@ foreach ($visibleCases as $case) {
             document.getElementById('detailsReference').textContent = `${selectedCase.case_code} - ${selectedCase.title}`;
             const body = document.getElementById('detailsBody');
 
-            const evidenceList = evidenceEntries.filter(item => item.case_id == selectedCase.id);
             const updatesList = caseUpdates.filter(item => item.case_id == selectedCase.id);
             const isAssignedOfficer = selectedCase.assigned_officer && selectedCase.assigned_officer === currentOfficerUsername;
             const canManageCase = permissions.isSupervisor || permissions.isDetective || isAssignedOfficer;
@@ -671,8 +647,8 @@ foreach ($visibleCases as $case) {
                 <form method="post" action="dashboard.php" class="case-update-form primary-form">
                     <div class="form-section-header">
                         <div>
-                            <h3>Case management</h3>
-                            <p>Update assignment, status, and the working narrative.</p>
+                            <h3>Case record</h3>
+                            <p>Keep the active assignment, status, and narrative current.</p>
                         </div>
                     </div>
                     <input type="hidden" name="action" value="update_case">
@@ -700,27 +676,6 @@ foreach ($visibleCases as $case) {
                     </div>
                 </form>
                 <div class="case-action-grid">
-                <form method="post" action="dashboard.php" class="case-update-form compact-form">
-                    <div class="form-section-header">
-                        <div>
-                            <h3>Evidence</h3>
-                            <p>Add physical, digital, or witness evidence.</p>
-                        </div>
-                    </div>
-                    <input type="hidden" name="action" value="log_evidence">
-                    <input type="hidden" name="case_id" value="${escapeHtml(selectedCase.id)}">
-                    <label>
-                        Evidence type
-                        <input type="text" name="evidence_type" required>
-                    </label>
-                    <label class="full-width">
-                        Details
-                        <textarea name="details" rows="3" required></textarea>
-                    </label>
-                    <div class="form-actions full-width">
-                        <button type="submit" class="button">Log evidence</button>
-                    </div>
-                </form>
                 <form method="post" action="dashboard.php" class="case-update-form compact-form">
                     <div class="form-section-header">
                         <div>
@@ -757,6 +712,12 @@ foreach ($visibleCases as $case) {
                     </div>
                 </form>
                 <div class="case-resolution-actions">
+                    <div class="form-section-header">
+                        <div>
+                            <h3>Resolution</h3>
+                            <p>Move the case toward completion.</p>
+                        </div>
+                    </div>
                 <form method="post" action="dashboard.php" class="case-update-form resolution-form">
                     <input type="hidden" name="action" value="resolve_case">
                     <input type="hidden" name="case_id" value="${escapeHtml(selectedCase.id)}">
@@ -770,19 +731,23 @@ foreach ($visibleCases as $case) {
                 </form>
                 </div>
                 </div>
-            ` : '<p class="empty-note">You can view this case, but it is not assigned to you.</p>';
+            ` : '<div class="case-view-only"><strong>View only</strong><span>You can review this case, but updates are limited to the assigned officer or Supervisor.</span></div>';
 
             body.innerHTML = `
+                <div class="case-detail-shell">
                 <div class="case-overview">
-                    <div class="case-summary">
+                    <section class="case-summary">
                         <div class="case-summary-topline">
                             <span class="case-code">${escapeHtml(selectedCase.case_code)}</span>
                             <span class="status-pill ${getStatusClass(selectedCase.status)}">${escapeHtml(selectedCase.status)}</span>
                         </div>
                         <h3>${escapeHtml(selectedCase.title)}</h3>
-                        <p>${escapeHtml(selectedCase.reference_code ? `Linked to report ${selectedCase.reference_code}` : 'No linked public report')}</p>
-                    </div>
-                    <div class="case-quick-stats" aria-label="Case summary">
+                        <p>${escapeHtml(selectedCase.reference_code ? `Linked to public report ${selectedCase.reference_code}` : 'No linked public report')}</p>
+                        <div class="case-summary-actions">
+                            <a class="button secondary small" href="case_report.php?case_id=${encodeURIComponent(selectedCase.id)}" target="_blank">Generate crime report</a>
+                        </div>
+                    </section>
+                    <aside class="case-quick-stats" aria-label="Case summary">
                         <div>
                             <span>Assigned officer</span>
                             <strong>${escapeHtml(getOfficerName(selectedCase.assigned_officer))}</strong>
@@ -795,7 +760,7 @@ foreach ($visibleCases as $case) {
                             <span>Created by</span>
                             <strong>${escapeHtml(selectedCase.created_by)}</strong>
                         </div>
-                    </div>
+                    </aside>
                 </div>
                 <div class="case-details">
                     <section class="case-text">
@@ -829,13 +794,6 @@ foreach ($visibleCases as $case) {
                 <div class="case-history">
                     <section class="case-log">
                         <div class="section-title-row">
-                            <h3>Evidence log</h3>
-                            <span>${evidenceList.length} ${evidenceList.length === 1 ? 'entry' : 'entries'}</span>
-                        </div>
-                        ${evidenceList.length ? evidenceList.map(item => `<article class="case-log-item"><strong>${escapeHtml(item.evidence_type)}</strong><p>${nl2br(item.details)}</p><span>Logged by ${escapeHtml(item.logged_by)} on ${escapeHtml(item.logged_at)}</span></article>`).join('') : '<p class="empty-note">No evidence logged yet.</p>'}
-                    </section>
-                    <section class="case-log">
-                        <div class="section-title-row">
                             <h3>Investigation updates</h3>
                             <span>${updatesList.length} ${updatesList.length === 1 ? 'entry' : 'entries'}</span>
                         </div>
@@ -849,9 +807,6 @@ foreach ($visibleCases as $case) {
                     </div>
                     ${actionForms}
                 </div>
-
-                <div class="report-actions">
-                    <a class="button secondary" href="case_report.php?case_id=${encodeURIComponent(selectedCase.id)}" target="_blank">Generate crime report</a>
                 </div>
             `;
 

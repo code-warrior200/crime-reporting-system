@@ -714,9 +714,9 @@ table button {
 
 .details-panel {
     padding: 0;
-    border: 1px solid #dbe4f0;
-    border-radius: 1.25rem;
-    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.09);
+    border: 1px solid #d7e0ec;
+    border-radius: 0.75rem;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
     margin-top: 2rem;
     background: white;
     overflow: hidden;
@@ -727,7 +727,7 @@ table button {
     justify-content: space-between;
     align-items: flex-start;
     gap: 1rem;
-    padding: 1.5rem;
+    padding: 1.25rem 1.5rem;
     border-bottom: 1px solid #e2e8f0;
     background: #f8fafc;
     flex-wrap: wrap;
@@ -750,16 +750,21 @@ table button {
 }
 
 #detailsBody {
+    padding: 0;
+}
+
+.case-detail-shell {
     display: grid;
-    gap: 1.25rem;
-    padding: 1.5rem;
+    gap: 0;
+    background: #ffffff;
 }
 
 .case-overview {
     display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
-    gap: 1rem;
+    grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
+    gap: 0;
     align-items: stretch;
+    border-bottom: 1px solid #e2e8f0;
 }
 
 .case-summary,
@@ -767,16 +772,13 @@ table button {
 .case-text,
 .case-meta,
 .case-log,
-.case-workspace,
-.case-update-form {
-    border: 1px solid #e2e8f0;
-    border-radius: 0.75rem;
+.case-workspace {
     background: #ffffff;
 }
 
 .case-summary {
-    padding: 1.35rem;
-    background: linear-gradient(135deg, #f8fafc 0%, #eef6ff 100%);
+    padding: 1.5rem;
+    background: #ffffff;
 }
 
 .case-summary-topline {
@@ -789,7 +791,7 @@ table button {
 }
 
 .case-code {
-    color: #1d4ed8;
+    color: #1e40af;
     font-weight: 800;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -825,8 +827,8 @@ table button {
 .case-summary h3 {
     margin: 0 0 0.55rem;
     color: #0f172a;
-    font-size: clamp(1.35rem, 2.2vw, 2rem);
-    line-height: 1.15;
+    font-size: clamp(1.25rem, 2vw, 1.75rem);
+    line-height: 1.2;
 }
 
 .case-summary p,
@@ -835,9 +837,18 @@ table button {
     color: #64748b;
 }
 
+.case-summary-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+}
+
 .case-quick-stats {
     display: grid;
     grid-template-columns: 1fr;
+    border-left: 1px solid #e2e8f0;
+    background: #f8fafc;
 }
 
 .case-quick-stats div {
@@ -868,38 +879,39 @@ table button {
 
 .case-details {
     display: grid;
-    grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
-    gap: 1rem;
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+    gap: 0;
+    border-bottom: 1px solid #e2e8f0;
 }
 
 .case-text,
 .case-meta,
 .case-log,
 .case-workspace {
-    padding: 1.25rem;
+    padding: 1.5rem;
 }
 
 .case-text p {
     margin-top: 1rem;
     color: #334155;
+    max-width: 75ch;
 }
 
 .case-meta dl {
     display: grid;
-    gap: 0.9rem;
+    gap: 0;
     margin-top: 1rem;
 }
 
 .case-meta div {
     display: grid;
     gap: 0.25rem;
-    padding-bottom: 0.85rem;
-    border-bottom: 1px solid #edf2f7;
+    padding: 0.8rem 0;
+    border-top: 1px solid #edf2f7;
 }
 
 .case-meta div:last-child {
-    padding-bottom: 0;
-    border-bottom: none;
+    padding-bottom: 0.8rem;
 }
 
 .section-title-row,
@@ -920,19 +932,25 @@ table button {
 
 .case-history {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
+    grid-template-columns: 1fr;
+    gap: 0;
+    border-bottom: 1px solid #e2e8f0;
 }
 
 .case-log {
-    background: #f8fafc;
+    background: #ffffff;
+}
+
+.case-log + .case-log,
+.case-meta {
+    border-left: 1px solid #e2e8f0;
 }
 
 .case-log-item {
     position: relative;
-    padding: 1rem 0 0 1.25rem;
-    margin-top: 1rem;
-    border-top: 1px solid #e2e8f0;
+    padding: 1rem 0 0 1.5rem;
+    margin-top: 0.85rem;
+    border-top: 1px solid #edf2f7;
 }
 
 .case-log-item::before {
@@ -940,10 +958,11 @@ table button {
     position: absolute;
     left: 0;
     top: 1.45rem;
-    width: 0.5rem;
-    height: 0.5rem;
+    width: 0.55rem;
+    height: 0.55rem;
     border-radius: 999px;
     background: #2563eb;
+    box-shadow: 0 0 0 4px #dbeafe;
 }
 
 .case-log-item:first-of-type {
@@ -963,8 +982,8 @@ table button {
 
 .case-workspace {
     display: grid;
-    gap: 1rem;
-    background: #fbfdff;
+    gap: 1.25rem;
+    background: #f8fafc;
 }
 
 .workspace-title {
@@ -976,7 +995,10 @@ table button {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
-    padding: 1.1rem;
+    padding: 1.25rem;
+    border: 1px solid #dfe7f1;
+    border-radius: 0.75rem;
+    background: #ffffff;
 }
 
 .case-update-form label {
@@ -1006,6 +1028,10 @@ table button {
     display: grid;
     align-content: start;
     gap: 1rem;
+    padding: 1.25rem;
+    border: 1px solid #dfe7f1;
+    border-radius: 0.75rem;
+    background: #ffffff;
 }
 
 .resolution-form {
@@ -1021,6 +1047,20 @@ table button {
 .form-actions {
     display: flex;
     justify-content: flex-end;
+}
+
+.case-view-only {
+    display: grid;
+    gap: 0.35rem;
+    padding: 1rem;
+    border: 1px solid #dbeafe;
+    border-radius: 0.75rem;
+    background: #eff6ff;
+    color: #1e3a8a;
+}
+
+.case-view-only span {
+    color: #475569;
 }
 
 .stats-panel .full-width {
@@ -1118,6 +1158,18 @@ table button {
         grid-template-columns: 1fr;
     }
 
+    .case-quick-stats,
+    .case-log + .case-log,
+    .case-meta {
+        border-left: none;
+    }
+
+    .case-quick-stats,
+    .case-meta,
+    .case-log + .case-log {
+        border-top: 1px solid #e2e8f0;
+    }
+
     .case-quick-stats {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
@@ -1182,6 +1234,14 @@ table button {
     .case-quick-stats,
     .case-update-form {
         grid-template-columns: 1fr;
+    }
+
+    .case-quick-stats div {
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .case-quick-stats div:last-child {
+        border-bottom: none;
     }
 
     .section-title-row,
