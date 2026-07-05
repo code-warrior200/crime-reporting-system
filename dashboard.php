@@ -109,7 +109,9 @@ $visibleCases = array_values(array_filter($cases, function (array $case) use ($c
     return canViewCase($case, $currentRole, $currentOfficerUsername);
 }));
 $visibleReportIds = [];
+$visibleCaseIds = [];
 foreach ($visibleCases as $case) {
+    $visibleCaseIds[(int) $case['id']] = true;
     if (!empty($case['report_id'])) {
         $visibleReportIds[(int) $case['report_id']] = true;
     }
@@ -119,6 +121,12 @@ $visibleReports = (isSupervisor($currentRole) || isDetective($currentRole))
     : array_values(array_filter($reports, static function (array $report) use ($visibleReportIds): bool {
         return isset($visibleReportIds[(int) $report['id']]);
     }));
+$visibleEvidence = array_values(array_filter($caseEvidence, static function (array $entry) use ($visibleCaseIds): bool {
+    return isset($visibleCaseIds[(int) $entry['case_id']]);
+}));
+$visibleUpdates = array_values(array_filter($caseUpdates, static function (array $entry) use ($visibleCaseIds): bool {
+    return isset($visibleCaseIds[(int) $entry['case_id']]);
+}));
 
 $filterStartDate = trim($_GET['start_date'] ?? '');
 $filterEndDate = trim($_GET['end_date'] ?? '');
@@ -593,8 +601,8 @@ foreach ($visibleCases as $case) {
     <script>
         const reports = <?php echo json_encode($filteredReports, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const cases = <?php echo json_encode($filteredCases, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
-        const evidenceEntries = <?php echo json_encode($caseEvidence, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
-        const caseUpdates = <?php echo json_encode($caseUpdates, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+        const evidenceEntries = <?php echo json_encode($visibleEvidence, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+        const caseUpdates = <?php echo json_encode($visibleUpdates, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const officers = <?php echo json_encode($officers, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const currentOfficerUsername = <?php echo json_encode($currentOfficerUsername, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const permissions = <?php echo json_encode([
