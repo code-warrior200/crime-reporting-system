@@ -28,7 +28,7 @@ function sendReferenceEmail(string $to, string $fullname, string $reference): bo
         'Content-Type: text/plain; charset=UTF-8',
     ];
 
-    return mail($to, $subject, $message, implode("\r\n", $headers));
+    return @mail($to, $subject, $message, implode("\r\n", $headers));
 }
 
 $fullname = trim($_POST['fullname'] ?? '');
