@@ -79,23 +79,70 @@ class SmtpMailer
             }
         }
 
+        if (!filter_var((string) $this->config['from_email'], FILTER_VALIDATE_EMAIL)) {
+            $this->lastError = 'SMTP from_email must be a valid sender email address.';
+            return false;
+        }
+
+        $encryption = strtolower((string) $this->config['encryption']);
+        if (!in_array($encryption, ['tls', 'ssl', 'none'], true)) {
+            $this->lastError = 'SMTP encryption must be tls, ssl, or none.';
+            return false;
+        }
+
         return true;
     }
 
     private function connect(): void
     {
-        $host = (string) $this->config['host'];
+        $host = trim((string) $this->config['host']);
         $port = (int) $this->config['port'];
         $timeout = (int) $this->config['timeout'];
+        $encryption = strtolower((string) $this->config['encryption']);
         $errno = 0;
         $errstr = '';
 
-        $this->socket = fsockopen($host, $port, $errno, $errstr, $timeout);
+        $this->assertHostCanResolve($host);
+
+        $transport = $encryption === 'ssl' ? 'ssl' : 'tcp';
+        $remote = "{$transport}://{$host}:{$port}";
+        $context = stream_context_create([
+            'ssl' => [
+                'SNI_enabled' => true,
+                'peer_name' => $host,
+            ],
+        ]);
+
+        $this->socket = @stream_socket_client($remote, $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT, $context);
         if (!$this->socket) {
-            throw new RuntimeException("Unable to connect to SMTP server: {$errstr} ({$errno}).");
+            $reason = $errstr ?: 'connection timed out or was refused';
+            throw new RuntimeException("Unable to connect to SMTP server {$host}:{$port}. {$reason}. Check that the SMTP host is correct and that your network/firewall allows outbound SMTP on this port.");
         }
 
         stream_set_timeout($this->socket, $timeout);
+    }
+
+    private function assertHostCanResolve(string $host): void
+    {
+        if ($host === '') {
+            throw new RuntimeException('SMTP host is empty. Set host in smtp_config.local.php.');
+        }
+
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            return;
+        }
+
+        $records = @dns_get_record($host, DNS_A + DNS_AAAA);
+        if ($records !== false && count($records) > 0) {
+            return;
+        }
+
+        $fallback = @gethostbynamel($host);
+        if ($fallback !== false && count($fallback) > 0) {
+            return;
+        }
+
+        throw new RuntimeException("SMTP host '{$host}' could not be resolved by DNS. Check the host value in smtp_config.local.php and confirm this server has working internet/DNS access.");
     }
 
     private function buildMessage(string $toEmail, string $toName, string $subject, string $body): string

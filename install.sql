@@ -59,6 +59,18 @@ CREATE TABLE IF NOT EXISTS case_updates (
   FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS case_assignment_notifications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  case_id INT NOT NULL,
+  recipient_username VARCHAR(50) NOT NULL,
+  assigned_by VARCHAR(100) NOT NULL,
+  message VARCHAR(255) NOT NULL,
+  read_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE,
+  INDEX idx_assignment_notifications_recipient (recipient_username, read_at, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 INSERT INTO users (username, password, fullname, role)
 VALUES
     ('NPF/2024/100001', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Chief Superintendent Akin', 'supervisor'),

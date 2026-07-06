@@ -125,6 +125,18 @@ function syncLinkedReportStatus(PDO $pdo, int $caseId, string $status): void
     }
 }
 
+function createCaseAssignmentNotification(PDO $pdo, int $caseId, string $recipientUsername, string $assignedBy, string $caseCode, string $caseTitle): void
+{
+    $message = sprintf('Supervisor assigned case %s to you: %s', $caseCode, $caseTitle);
+    $stmt = $pdo->prepare('INSERT INTO case_assignment_notifications (case_id, recipient_username, assigned_by, message) VALUES (:case_id, :recipient_username, :assigned_by, :message)');
+    $stmt->execute([
+        ':case_id' => $caseId,
+        ':recipient_username' => $recipientUsername,
+        ':assigned_by' => $assignedBy,
+        ':message' => $message,
+    ]);
+}
+
 $officers = safeFetchAll($pdo, "SELECT username, fullname, role FROM users WHERE role IN ('supervisor','detective','officer') ORDER BY fullname");
 $officerNames = [];
 foreach ($officers as $officer) {
@@ -248,6 +260,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':progress_percent' => $progress_percent,
                 ':created_by' => $_SESSION['fullname'],
             ]);
+            $createdCaseId = (int) $pdo->lastInsertId();
+
+            if (isSupervisor($currentRole) && $assigned_officer) {
+                createCaseAssignmentNotification($pdo, $createdCaseId, $assigned_officer, $_SESSION['fullname'], $case_code, $title);
+            }
 
             if ($report_id) {
                 $statusStmt = $pdo->prepare('UPDATE reports SET status = :status WHERE id = :report_id');
@@ -278,6 +295,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (in_array($status, ['Resolved', 'Closed'], true)) {
                 $progress_percent = 100;
             }
+            $assignmentChanged = canAssignCases($currentRole) && $assigned_officer && $assigned_officer !== ($caseRow['assigned_officer'] ?? '');
 
             if (canAssignCases($currentRole)) {
                 $stmt = $pdo->prepare('UPDATE cases SET title = :title, description = :description, assigned_officer = :assigned_officer, status = :status, progress_percent = :progress_percent WHERE id = :id');
@@ -300,7 +318,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
             }
 
+            if ($assignmentChanged) {
+                createCaseAssignmentNotification($pdo, $case_id, $assigned_officer, $_SESSION['fullname'], $caseRow['case_code'], $title);
+            }
+
             syncLinkedReportStatus($pdo, $case_id, $status);
+        }
+    } elseif ($action === 'mark_assignment_notification_read') {
+        $notificationId = (int) ($_POST['notification_id'] ?? 0);
+
+        if ($notificationId > 0) {
+            $stmt = $pdo->prepare('UPDATE case_assignment_notifications SET read_at = CURRENT_TIMESTAMP WHERE id = :id AND recipient_username = :recipient_username');
+            $stmt->execute([
+                ':id' => $notificationId,
+                ':recipient_username' => $currentOfficerUsername,
+            ]);
+        } else {
+            $stmt = $pdo->prepare('UPDATE case_assignment_notifications SET read_at = CURRENT_TIMESTAMP WHERE recipient_username = :recipient_username AND read_at IS NULL');
+            $stmt->execute([
+                ':recipient_username' => $currentOfficerUsername,
+            ]);
         }
     } elseif ($action === 'log_update') {
         $case_id = (int) ($_POST['case_id'] ?? 0);
@@ -395,6 +432,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+$assignmentNotifications = [];
+if ($currentOfficerUsername !== '') {
+    $notificationStmt = $pdo->prepare("
+        SELECT n.*, c.case_code, c.title, c.status
+        FROM case_assignment_notifications n
+        INNER JOIN cases c ON c.id = n.case_id
+        WHERE n.recipient_username = :recipient_username
+          AND n.read_at IS NULL
+          AND c.assigned_officer = :assigned_username
+        ORDER BY n.created_at DESC
+    ");
+    $notificationStmt->execute([
+        ':recipient_username' => $currentOfficerUsername,
+        ':assigned_username' => $currentOfficerUsername,
+    ]);
+    $assignmentNotifications = $notificationStmt->fetchAll();
+}
+
 $reportStatusCounts = [
     'New' => 0,
     'Under Investigation' => 0,
@@ -457,6 +512,43 @@ if (count($visibleCases) > 0) {
     </header>
 
     <main class="container dashboard-layout">
+        <?php if (count($assignmentNotifications) > 0): ?>
+        <section class="assignment-notifications" aria-label="Case assignment notifications">
+            <div class="assignment-notifications-header">
+                <div>
+                    <p class="eyebrow">New assignment</p>
+                    <h2><?php echo count($assignmentNotifications); ?> case<?php echo count($assignmentNotifications) === 1 ? '' : 's'; ?> assigned by the Supervisor</h2>
+                </div>
+                <?php if (count($assignmentNotifications) > 1): ?>
+                <form method="post" action="dashboard.php">
+                    <input type="hidden" name="action" value="mark_assignment_notification_read">
+                    <button type="submit" class="button secondary small">Dismiss all</button>
+                </form>
+                <?php endif; ?>
+            </div>
+            <div class="assignment-notification-list">
+                <?php foreach ($assignmentNotifications as $notification): ?>
+                    <article class="assignment-notification-card">
+                        <div>
+                            <span class="assignment-badge"><?php echo htmlspecialchars($notification['case_code']); ?></span>
+                            <h3><?php echo htmlspecialchars($notification['title']); ?></h3>
+                            <p><?php echo htmlspecialchars($notification['message']); ?></p>
+                            <small>Assigned by <?php echo htmlspecialchars($notification['assigned_by']); ?> on <?php echo htmlspecialchars($notification['created_at']); ?></small>
+                        </div>
+                        <div class="assignment-notification-actions">
+                            <button type="button" class="button small" onclick="showCase(<?php echo (int) $notification['case_id']; ?>)">View case</button>
+                            <form method="post" action="dashboard.php">
+                                <input type="hidden" name="action" value="mark_assignment_notification_read">
+                                <input type="hidden" name="notification_id" value="<?php echo (int) $notification['id']; ?>">
+                                <button type="submit" class="button secondary small">Dismiss</button>
+                            </form>
+                        </div>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+        </section>
+        <?php endif; ?>
+
         <section class="dashboard-hero card">
             <div class="hero-copy">
                 <p class="eyebrow">Overview</p>
@@ -743,7 +835,7 @@ if (count($visibleCases) > 0) {
     </main>
 
     <script>
-        const cases = <?php echo json_encode($caseRecordsForDisplay, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+        const cases = <?php echo json_encode(canSeeCaseRecords($currentRole) ? $visibleCases : [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const caseUpdates = <?php echo json_encode($caseUpdatesForDisplay, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const officers = <?php echo json_encode($officers, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const currentOfficerUsername = <?php echo json_encode($currentOfficerUsername, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;

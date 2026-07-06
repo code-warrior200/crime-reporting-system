@@ -492,6 +492,90 @@ textarea:focus {
     border: 1px solid #e2e8f0;
 }
 
+.assignment-notifications {
+    display: grid;
+    gap: 1rem;
+    padding: 1.25rem;
+    border: 1px solid #bfdbfe;
+    border-left: 4px solid #2563eb;
+    border-radius: 0.75rem;
+    background: #eff6ff;
+    box-shadow: 0 18px 40px rgba(37, 99, 235, 0.1);
+}
+
+.assignment-notifications-header,
+.assignment-notification-card,
+.assignment-notification-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.assignment-notifications-header {
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.assignment-notifications-header .eyebrow {
+    margin-bottom: 0.45rem;
+}
+
+.assignment-notifications-header h2 {
+    color: #0f172a;
+    font-size: clamp(1.2rem, 2vw, 1.6rem);
+    line-height: 1.25;
+}
+
+.assignment-notification-list {
+    display: grid;
+    gap: 0.85rem;
+}
+
+.assignment-notification-card {
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    border: 1px solid #dbeafe;
+    border-radius: 0.75rem;
+    background: #ffffff;
+}
+
+.assignment-notification-card h3 {
+    margin: 0.35rem 0 0.25rem;
+    color: #0f172a;
+    font-size: 1.05rem;
+}
+
+.assignment-notification-card p {
+    color: #334155;
+    margin: 0;
+}
+
+.assignment-notification-card small {
+    display: block;
+    margin-top: 0.45rem;
+    color: #64748b;
+}
+
+.assignment-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.75rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: #1e3a8a;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+}
+
+.assignment-notification-actions {
+    align-items: center;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 .dashboard-hero .hero-copy {
     max-width: 100%;
 }
@@ -1305,7 +1389,9 @@ table button {
     .header-inner,
     .footer-inner,
     .section-header,
-    .form-footer {
+    .form-footer,
+    .assignment-notifications-header,
+    .assignment-notification-card {
         flex-direction: column;
         align-items: stretch;
     }
@@ -1344,7 +1430,8 @@ table button {
 
     .section-title-row,
     .form-section-header,
-    .form-actions {
+    .form-actions,
+    .assignment-notification-actions {
         align-items: stretch;
         flex-direction: column;
     }
@@ -1402,6 +1489,7 @@ table button {
     td:nth-of-type(2):before { content: "Title"; }
     td:nth-of-type(3):before { content: "Assigned officer"; }
     td:nth-of-type(4):before { content: "Status"; }
-    td:nth-of-type(5):before { content: "Linked report"; }
-    td:nth-of-type(6):before { content: "Action"; }
+    td:nth-of-type(5):before { content: "Progress"; }
+    td:nth-of-type(6):before { content: "Linked report"; }
+    td:nth-of-type(7):before { content: "Action"; }
 }

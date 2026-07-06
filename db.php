@@ -86,6 +86,29 @@ function ensureSchema(PDO $pdo): void
         FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+    createOrRepairTable($pdo, 'case_assignment_notifications', "CREATE TABLE IF NOT EXISTS case_assignment_notifications (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        case_id INT NOT NULL,
+        recipient_username VARCHAR(50) NOT NULL,
+        assigned_by VARCHAR(100) NOT NULL,
+        message VARCHAR(255) NOT NULL,
+        read_at DATETIME NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE,
+        INDEX idx_assignment_notifications_recipient (recipient_username, read_at, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    verifyTableIntegrity($pdo, 'case_assignment_notifications', "CREATE TABLE case_assignment_notifications (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        case_id INT NOT NULL,
+        recipient_username VARCHAR(50) NOT NULL,
+        assigned_by VARCHAR(100) NOT NULL,
+        message VARCHAR(255) NOT NULL,
+        read_at DATETIME NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE,
+        INDEX idx_assignment_notifications_recipient (recipient_username, read_at, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
     $stmt = $pdo->prepare('INSERT IGNORE INTO users (username, password, fullname, role) VALUES (:username, :password, :fullname, :role)');
     $officers = [
         ['NPF/2024/100001', 'Chief Superintendent Akin', 'supervisor'],
