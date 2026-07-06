@@ -57,6 +57,17 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     die('Please provide a valid email address.');
 }
 
+$incidentDateValue = DateTimeImmutable::createFromFormat('Y-m-d', $incident_date);
+$dateErrors = DateTimeImmutable::getLastErrors();
+if (!$incidentDateValue || ($dateErrors !== false && ($dateErrors['warning_count'] > 0 || $dateErrors['error_count'] > 0))) {
+    die('Please provide a valid incident date.');
+}
+
+$today = new DateTimeImmutable('today');
+if ($incidentDateValue > $today) {
+    die('Incident date cannot be in the future.');
+}
+
 $reference = 'CASE-' . strtoupper(uniqid());
 
 $sql = 'INSERT INTO reports (reference_code, fullname, email, phone, category, location, incident_date, description) VALUES (:reference, :fullname, :email, :phone, :category, :location, :incident_date, :description)';

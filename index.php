@@ -26,10 +26,6 @@ $resolutionRate = $reportCount > 0 ? round(($resolvedReportCount / $reportCount)
                 </div>
             </div>
             <nav>
-                <!-- <ul class="nav-list">
-                    <li><a href="#report-form">Submit Report</a></li>
-                    <li><a href="#features">Features</a></li>
-                </ul> -->
                 <div class="nav-actions">
                     <a class="button secondary" href="track_status.php">Check Status</a>
                     <a class="button" href="login.php">Officer Login</a>
@@ -109,55 +105,99 @@ $resolutionRate = $reportCount > 0 ? round(($resolvedReportCount / $reportCount)
             </article>
         </section>
 
-        <section id="report-form" class="container card form-card">
-            <div class="section-intro">
-                <p class="eyebrow">Submit a report</p>
-                <h2>Non-emergency incident reporting</h2>
-                <p>Complete the form below and keep your reference handy for follow-up.</p>
+        <section id="report-form" class="report-intake-section">
+            <div class="container report-intake-shell">
+                <aside class="report-intake-aside" aria-label="Reporting guidance">
+                    <p class="eyebrow">Submit a report</p>
+                    <h2>Non-emergency incident reporting</h2>
+                    <p class="report-intake-lede">File a clear incident report and receive a tracking reference for follow-up.</p>
+
+                    <div class="emergency-notice">
+                        <strong>For emergencies</strong>
+                        <span>Call your local emergency line or go to the nearest police station immediately.</span>
+                    </div>
+
+                    <dl class="report-assurance-list">
+                        <div>
+                            <dt>Secure intake</dt>
+                            <dd>Your report is stored for authorized officer review.</dd>
+                        </div>
+                        <div>
+                            <dt>Trackable record</dt>
+                            <dd>A reference code is generated after submission.</dd>
+                        </div>
+                        <div>
+                            <dt>Clear handoff</dt>
+                            <dd>Incident details are routed into the case management workflow.</dd>
+                        </div>
+                    </dl>
+                </aside>
+
+                <form id="incidentForm" class="report-intake-form" action="submit_report.php" method="post">
+                    <div class="form-section-heading">
+                        <div>
+                            <span>Step 1</span>
+                            <h3>Reporter details</h3>
+                        </div>
+                        <small>Required fields are marked</small>
+                    </div>
+
+                    <div class="report-form-grid">
+                        <label>
+                            Full name <span aria-hidden="true">*</span>
+                            <input type="text" name="fullname" autocomplete="name" placeholder="Enter your legal name" required>
+                        </label>
+                        <label>
+                            Email address <span aria-hidden="true">*</span>
+                            <input type="email" name="email" autocomplete="email" placeholder="name@example.com" required>
+                        </label>
+                        <label>
+                            Phone number <span aria-hidden="true">*</span>
+                            <input type="tel" name="phone" autocomplete="tel" placeholder="+234 800 000 0000" required>
+                        </label>
+                    </div>
+
+                    <div class="form-section-heading">
+                        <div>
+                            <span>Step 2</span>
+                            <h3>Incident details</h3>
+                        </div>
+                    </div>
+
+                    <div class="report-form-grid">
+                        <label>
+                            Incident category <span aria-hidden="true">*</span>
+                            <select name="category" required>
+                                <option value="" disabled selected>Select category</option>
+                                <option value="Theft">Theft</option>
+                                <option value="Vandalism">Vandalism</option>
+                                <option value="Harassment">Harassment</option>
+                                <option value="Suspicious Activity">Suspicious Activity</option>
+                                <option value="Traffic Concern">Traffic Concern</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </label>
+                        <label>
+                            Location <span aria-hidden="true">*</span>
+                            <input type="text" name="location" autocomplete="street-address" placeholder="Street, landmark, or area" required>
+                        </label>
+                        <label>
+                            Incident date <span aria-hidden="true">*</span>
+                            <input type="date" name="incident_date" max="<?php echo date('Y-m-d'); ?>" required>
+                        </label>
+                    </div>
+
+                    <label class="report-description-field">
+                        Incident description <span aria-hidden="true">*</span>
+                        <textarea name="description" rows="7" placeholder="Include what happened, when it happened, who was involved, and any visible evidence." required></textarea>
+                    </label>
+
+                    <div class="report-submit-row">
+                        <p>After submission, keep the reference code shown on the confirmation screen.</p>
+                        <button type="submit" class="button">Submit Report</button>
+                    </div>
+                </form>
             </div>
-            <form id="incidentForm" action="submit_report.php" method="post">
-                <div class="form-grid">
-                    <label>
-                        Full Name
-                        <input type="text" name="fullname" required>
-                    </label>
-                    <label>
-                        Email Address
-                        <input type="email" name="email" required>
-                    </label>
-                    <label>
-                        Phone Number
-                        <input type="tel" name="phone" required>
-                    </label>
-                    <label>
-                        Incident Category
-                        <select name="category" required>
-                            <option value="Theft">Theft</option>
-                            <option value="Vandalism">Vandalism</option>
-                            <option value="Harassment">Harassment</option>
-                            <option value="Suspicious Activity">Suspicious Activity</option>
-                            <option value="Traffic Concern">Traffic Concern</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </label>
-                    <label>
-                        Location
-                        <input type="text" name="location" required>
-                    </label>
-                    <label>
-                        Incident Date
-                        <input type="date" name="incident_date" required>
-                    </label>
-                </div>
-                <label class="full-width">
-                    Incident Description
-                    <textarea name="description" rows="6" required></textarea>
-                </label>
-                <div class="form-footer">
-                    <p>All reports are securely recorded and accessible only to authorized officers.</p>
-                    <button type="submit" class="button">Submit Report</button>
-                </div>
-            </form>
         </section>
     </main>
 
