@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS reports (
   officer_notes TEXT,
   status ENUM('New','Under Investigation','Resolved','Closed') NOT NULL DEFAULT 'New',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTA
+  MP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS cases (
@@ -89,5 +90,3 @@ VALUES
     ('NPF/2024/100014', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Community Liaison Nneka', 'officer'),
     ('NPF/2024/100015', '$2y$10$KQG1n1bZqqQF4V5U6oWc2O8aUBS5wKfBV1uZt2UQloObxE7Y6pYLe', 'Support Officer Obi', 'officer')
 ON DUPLICATE KEY UPDATE fullname = VALUES(fullname), role = VALUES(role);
-
--- Password for all NPF/2024/1000XX accounts is: officer@123
