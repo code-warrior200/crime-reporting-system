@@ -15,21 +15,21 @@ if ($reference) {
      }
 } 
 ?> 
-<!D OCTYPE html>
-<htm l lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head >
-    <m eta charset="UTF-8">
-    <me ta name="viewport" content="width=device-width, initial-scale=1.0">
-    <tit le>Track Report Status</title>
-    <link  rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Track Report Status</title>
+    <link rel="stylesheet" href="styles.css">
 </head> 
 <body> 
-    <ma in class="container card lookup-card">
+    <main class="container card lookup-card">
          <div class="section-intro">
              <p class="eyebrow">Report tracker</p>
              <h2>Check the status of your incident</h2>
              <p>Enter the reference code provided at submission to view the current report status and linked case details.</p>
-        </di v>
+        </div>
  
          <form class="form-grid" method="get" action="track_status.php">
              <label class="full-width">
@@ -40,7 +40,7 @@ if ($reference) {
                  <button type="submit" class="button">Check Status</button>
                  <a class="button secondary" href="index.php">Back to Home</a>
              </div>
-        </ form>
+        </form>
   
           <?php if ($reference): ?>
               <?php if ($report): ?>
@@ -58,9 +58,9 @@ if ($reference) {
                           <p><strong>Officer notes:</strong></p>
                           <p><?php echo nl2br(htmlspecialchars($report['officer_notes'])); ?></p>
                       <?php endif; ?>
-                <  /div>
-            <?php   else: ?>
-                <di  v class="lookup-result">
+                </div>
+            <?php  else: ?>
+                <div class="lookup-result">
                       <p><?php echo htmlspecialchars($statusMessage); ?></p>
                 </div  >
             <?php endif; ?>
