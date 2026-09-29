@@ -230,7 +230,7 @@ class SmtpMailer
 
 function loadSmtpConfig(): array
 {
-    $localConfig = __DIR__ . '/smtp_config.local.php';
+    $localConfig = __DIR__ . '/../config/smtp_config.local.php';
     if (is_file($localConfig)) {
         return require $localConfig;
     }

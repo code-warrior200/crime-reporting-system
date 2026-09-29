@@ -1,7 +1,17 @@
 <?php
-require_once 'db.php';
+require_once __DIR__ . '/../config/db.php';
 
 if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
+$sessionUserStmt = $pdo->prepare('SELECT account_status FROM users WHERE id = :id LIMIT 1');
+$sessionUserStmt->execute([':id' => $_SESSION['user_id']]);
+$sessionUser = $sessionUserStmt->fetch();
+if (!$sessionUser || $sessionUser['account_status'] !== 'Active') {
+    session_unset();
+    session_destroy();
     header('Location: login.php');
     exit;
 }
@@ -48,6 +58,16 @@ function canCreateCases(string $role): bool
 function canAssignCases(string $role): bool
 {
     return isSupervisor($role);
+}
+
+function canManageOfficers(string $role): bool
+{
+    return isSupervisor($role);
+}
+
+function officerManagementRoles(): array
+{
+    return ['officer', 'detective'];
 }
 
 function canSeeCaseRecords(string $role): bool
@@ -137,7 +157,10 @@ function createCaseAssignmentNotification(PDO $pdo, int $caseId, string $recipie
     ]);
 }
 
-$officers = safeFetchAll($pdo, "SELECT username, fullname, role FROM users WHERE role IN ('supervisor','detective','officer') ORDER BY fullname");
+$officers = safeFetchAll($pdo, "SELECT username, fullname, role FROM users WHERE role IN ('supervisor','detective','officer') AND account_status = 'Active' ORDER BY fullname");
+$staffMembers = canManageOfficers($currentRole)
+    ? safeFetchAll($pdo, "SELECT id, username, fullname, role, account_status FROM users WHERE role IN ('officer','detective') ORDER BY fullname")
+    : [];
 $officerNames = [];
 foreach ($officers as $officer) {
     $officerNames[$officer['username']] = $officer['fullname'];
@@ -233,7 +256,101 @@ foreach ($visibleUpdates as $update) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
-    if ($action === 'create_case' && canCreateCases($currentRole)) {
+    if ($action === 'create_officer' && canManageOfficers($currentRole)) {
+        $username = trim($_POST['username'] ?? '');
+        $fullname = trim($_POST['fullname'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $role = strtolower(trim($_POST['role'] ?? 'officer'));
+
+        if ($username === '' || $fullname === '' || strlen($password) < 8 || !in_array($role, officerManagementRoles(), true)) {
+            $_SESSION['officer_admin_message'] = 'Enter a name, unique officer ID, approved role, and a password of at least 8 characters.';
+        } else {
+            try {
+                $stmt = $pdo->prepare('INSERT INTO users (username, password, fullname, role, account_status) VALUES (:username, :password, :fullname, :role, :account_status)');
+                $stmt->execute([
+                    ':username' => $username,
+                    ':password' => password_hash($password, PASSWORD_DEFAULT),
+                    ':fullname' => $fullname,
+                    ':role' => $role,
+                    ':account_status' => 'Active',
+                ]);
+                $_SESSION['officer_admin_message'] = 'Officer account created.';
+            } catch (PDOException $e) {
+                $_SESSION['officer_admin_message'] = 'That officer ID is already in use.';
+            }
+        }
+    } elseif ($action === 'update_officer' && canManageOfficers($currentRole)) {
+        $officerId = (int) ($_POST['officer_id'] ?? 0);
+        $username = trim($_POST['username'] ?? '');
+        $fullname = trim($_POST['fullname'] ?? '');
+        $role = strtolower(trim($_POST['role'] ?? 'officer'));
+        $newPassword = $_POST['new_password'] ?? '';
+
+        if ($officerId <= 0 || $username === '' || $fullname === '' || !in_array($role, officerManagementRoles(), true) || ($newPassword !== '' && strlen($newPassword) < 8)) {
+            $_SESSION['officer_admin_message'] = 'Enter valid officer details. A replacement password must contain at least 8 characters.';
+        } else {
+            $memberStmt = $pdo->prepare("SELECT id, username FROM users WHERE id = :id AND role IN ('officer','detective') LIMIT 1");
+            $memberStmt->execute([':id' => $officerId]);
+            $member = $memberStmt->fetch();
+
+            if (!$member) {
+                $_SESSION['officer_admin_message'] = 'Officer account not found.';
+            } else {
+                try {
+                    if ($newPassword !== '') {
+                        $stmt = $pdo->prepare('UPDATE users SET username = :username, fullname = :fullname, role = :role, password = :password WHERE id = :id');
+                        $stmt->execute([
+                            ':username' => $username,
+                            ':fullname' => $fullname,
+                            ':role' => $role,
+                            ':password' => password_hash($newPassword, PASSWORD_DEFAULT),
+                            ':id' => $officerId,
+                        ]);
+                    } else {
+                        $stmt = $pdo->prepare('UPDATE users SET username = :username, fullname = :fullname, role = :role WHERE id = :id');
+                        $stmt->execute([
+                            ':username' => $username,
+                            ':fullname' => $fullname,
+                            ':role' => $role,
+                            ':id' => $officerId,
+                        ]);
+                    }
+                    if ($member['username'] !== $username) {
+                        $caseStmt = $pdo->prepare('UPDATE cases SET assigned_officer = :username WHERE assigned_officer = :previous_username');
+                        $caseStmt->execute([':username' => $username, ':previous_username' => $member['username']]);
+                    }
+                    $_SESSION['officer_admin_message'] = 'Officer information updated.';
+                } catch (PDOException $e) {
+                    $_SESSION['officer_admin_message'] = 'That officer ID is already in use.';
+                }
+            }
+        }
+    } elseif ($action === 'toggle_officer_suspension' && canManageOfficers($currentRole)) {
+        $officerId = (int) ($_POST['officer_id'] ?? 0);
+        $status = ($_POST['account_status'] ?? '') === 'Suspended' ? 'Suspended' : 'Active';
+        $stmt = $pdo->prepare("UPDATE users SET account_status = :account_status WHERE id = :id AND role IN ('officer','detective')");
+        $stmt->execute([':account_status' => $status, ':id' => $officerId]);
+        $_SESSION['officer_admin_message'] = $status === 'Suspended' ? 'Officer account suspended.' : 'Officer account reinstated.';
+    } elseif ($action === 'delete_officer' && canManageOfficers($currentRole)) {
+        $officerId = (int) ($_POST['officer_id'] ?? 0);
+        $memberStmt = $pdo->prepare("SELECT username FROM users WHERE id = :id AND role IN ('officer','detective') LIMIT 1");
+        $memberStmt->execute([':id' => $officerId]);
+        $member = $memberStmt->fetch();
+        if ($member) {
+            $pdo->beginTransaction();
+            try {
+                $caseStmt = $pdo->prepare('UPDATE cases SET assigned_officer = NULL WHERE assigned_officer = :username');
+                $caseStmt->execute([':username' => $member['username']]);
+                $deleteStmt = $pdo->prepare('DELETE FROM users WHERE id = :id');
+                $deleteStmt->execute([':id' => $officerId]);
+                $pdo->commit();
+                $_SESSION['officer_admin_message'] = 'Officer account removed and active case assignments cleared.';
+            } catch (Throwable $e) {
+                $pdo->rollBack();
+                $_SESSION['officer_admin_message'] = 'The officer account could not be removed.';
+            }
+        }
+    } elseif ($action === 'create_case' && canCreateCases($currentRole)) {
         $title = trim($_POST['title'] ?? '');
         $description = trim($_POST['description'] ?? '');
         $assigned_officer = canAssignCases($currentRole) ? (trim($_POST['assigned_officer'] ?? '') ?: null) : null;
@@ -484,6 +601,8 @@ if (count($visibleCases) > 0) {
     }
     $averageProgress = (int) round($progressTotal / count($visibleCases));
 }
+$officerAdminMessage = $_SESSION['officer_admin_message'] ?? '';
+unset($_SESSION['officer_admin_message']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -491,7 +610,7 @@ if (count($visibleCases) > 0) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Officer Dashboard</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="../assets/css/styles.css">
 </head>
 <body>
     <header class="site-header dashboard-header">
@@ -580,6 +699,107 @@ if (count($visibleCases) > 0) {
                 </div>
             </div>
         </section>
+
+        <?php if (canManageOfficers($currentRole)): ?>
+        <section class="card officer-management-card" aria-labelledby="officer-management-title">
+            <div class="section-header">
+                <div>
+                    <p class="eyebrow">Supervisor controls</p>
+                    <h2 id="officer-management-title">Officer management</h2>
+                </div>
+                <p class="table-note">Create, update, suspend, reinstate, or remove officer and detective accounts.</p>
+            </div>
+
+            <?php if ($officerAdminMessage): ?>
+                <div class="alert"><?php echo htmlspecialchars($officerAdminMessage); ?></div>
+            <?php endif; ?>
+
+            <form method="post" action="dashboard.php" class="form-grid officer-create-form">
+                <input type="hidden" name="action" value="create_officer">
+                <label>
+                    Full name
+                    <input type="text" name="fullname" maxlength="100" required>
+                </label>
+                <label>
+                    Officer ID
+                    <input type="text" name="username" maxlength="50" required>
+                </label>
+                <label>
+                    Role
+                    <select name="role" required>
+                        <option value="officer">Officer</option>
+                        <option value="detective">Detective</option>
+                    </select>
+                </label>
+                <label>
+                    Temporary password
+                    <input type="password" name="password" minlength="8" required>
+                </label>
+                <div class="form-actions">
+                    <button type="submit" class="button">Add officer</button>
+                </div>
+            </form>
+
+            <div class="officer-management-list">
+                <?php foreach ($staffMembers as $member): ?>
+                <article class="officer-management-item">
+                    <div class="officer-management-summary">
+                        <div>
+                            <h3><?php echo htmlspecialchars($member['fullname']); ?></h3>
+                            <p><?php echo htmlspecialchars($member['username']); ?> · <?php echo htmlspecialchars($roleLabels[$member['role']] ?? ucfirst($member['role'])); ?></p>
+                        </div>
+                        <span class="officer-status officer-status--<?php echo strtolower($member['account_status']); ?>"><?php echo htmlspecialchars($member['account_status']); ?></span>
+                    </div>
+                    <div class="officer-management-actions">
+                        <details>
+                            <summary>Edit officer</summary>
+                            <form method="post" action="dashboard.php" class="form-grid officer-edit-form">
+                                <input type="hidden" name="action" value="update_officer">
+                                <input type="hidden" name="officer_id" value="<?php echo (int) $member['id']; ?>">
+                                <label>
+                                    Full name
+                                    <input type="text" name="fullname" value="<?php echo htmlspecialchars($member['fullname']); ?>" maxlength="100" required>
+                                </label>
+                                <label>
+                                    Officer ID
+                                    <input type="text" name="username" value="<?php echo htmlspecialchars($member['username']); ?>" maxlength="50" required>
+                                </label>
+                                <label>
+                                    Role
+                                    <select name="role" required>
+                                        <option value="officer" <?php echo $member['role'] === 'officer' ? 'selected' : ''; ?>>Officer</option>
+                                        <option value="detective" <?php echo $member['role'] === 'detective' ? 'selected' : ''; ?>>Detective</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    New password <small>(optional)</small>
+                                    <input type="password" name="new_password" minlength="8">
+                                </label>
+                                <div class="form-actions">
+                                    <button type="submit" class="button secondary">Save changes</button>
+                                </div>
+                            </form>
+                        </details>
+                        <form method="post" action="dashboard.php">
+                            <input type="hidden" name="action" value="toggle_officer_suspension">
+                            <input type="hidden" name="officer_id" value="<?php echo (int) $member['id']; ?>">
+                            <input type="hidden" name="account_status" value="<?php echo $member['account_status'] === 'Active' ? 'Suspended' : 'Active'; ?>">
+                            <button type="submit" class="button secondary small"><?php echo $member['account_status'] === 'Active' ? 'Suspend' : 'Reinstate'; ?></button>
+                        </form>
+                        <form method="post" action="dashboard.php" onsubmit="return confirm('Remove this officer? Their active case assignments will be cleared.');">
+                            <input type="hidden" name="action" value="delete_officer">
+                            <input type="hidden" name="officer_id" value="<?php echo (int) $member['id']; ?>">
+                            <button type="submit" class="button danger small">Remove</button>
+                        </form>
+                    </div>
+                </article>
+                <?php endforeach; ?>
+                <?php if (count($staffMembers) === 0): ?>
+                    <p class="empty-note">No officer or detective accounts have been added.</p>
+                <?php endif; ?>
+            </div>
+        </section>
+        <?php endif; ?>
 
         <?php if (isSupervisor($currentRole)): ?>
         <section class="card supervisor-progress-card">

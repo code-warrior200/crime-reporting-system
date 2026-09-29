@@ -1,5 +1,5 @@
 <?php
-require_once 'db.php';
+require_once __DIR__ . '/../config/db.php';
 
 $reference = trim($_GET['reference'] ?? '');
 $statusMessage = ''; 
@@ -21,7 +21,7 @@ if ($reference) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Track Report Status</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="../assets/css/styles.css">
 </head> 
 <body> 
     <main class="container card lookup-card">

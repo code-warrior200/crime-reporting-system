@@ -1,6 +1,6 @@
 <?php
-require_once 'db.php';
-require_once 'smtp_mailer.php';
+require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../services/smtp_mailer.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: index.php');
@@ -92,7 +92,7 @@ $emailSent = sendReferenceEmail($email, $fullname, $reference, $emailError);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Report Submitted</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="../assets/css/styles.css">
 </head>
 <body>
     <main class="container card success-card">

@@ -1,5 +1,5 @@
 <?php
-require __DIR__ . '/db.php';
+require __DIR__ . '/../config/db.php';
 
 try {
     $stmt = $pdo->query('SHOW TABLES');

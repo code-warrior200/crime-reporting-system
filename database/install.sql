@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
   username VARCHAR(50) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
   fullname VARCHAR(100) NOT NULL,
-  role VARCHAR(50) NOT NULL DEFAULT 'officer'
+  role VARCHAR(50) NOT NULL DEFAULT 'officer',
+  account_status ENUM('Active','Suspended') NOT NULL DEFAULT 'Active'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS reports (
