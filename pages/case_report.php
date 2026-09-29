@@ -14,7 +14,7 @@ $case = $stmt->fetch();
 
 if (!$case) {
     http_response_code(404);
-    echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Crime Report Not Found</title></head><body><h1>Report not found</h1><p>The requested case report does not exist.</p></body></html>';
+    echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Case Report Not Found</title></head><body><h1>Report not found</h1><p>The requested case report does not exist.</p></body></html>';
     exit;
 }
 
@@ -39,7 +39,7 @@ $updatesEntries = $updates->fetchAll();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crime Report - <?php echo htmlspecialchars($case['case_code']); ?></title>
+    <title>Zaria Area Command HQ Case Report - <?php echo htmlspecialchars($case['case_code']); ?></title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -131,7 +131,7 @@ $updatesEntries = $updates->fetchAll();
         </div>
         <div class="report-header">
             <div>
-                <p class="section-title">Crime report</p>
+                <p class="section-title">Zaria Area Command HQ · Case Study Report</p>
                 <h1><?php echo htmlspecialchars($case['case_code']); ?></h1>
             </div>
             <div>

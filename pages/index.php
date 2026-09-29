@@ -12,17 +12,17 @@ $resolutionRate = $reportCount > 0 ? round(($resolvedReportCount / $reportCount)
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Public Reporting & Case Management</title>
+    <title>Zaria Area Command HQ | Digital Reporting Case Study</title>
     <link rel="stylesheet" href="../assets/css/styles.css">
 </head>
 <body>
     <header class="site-header">
         <div class="header-inner container">
             <div class="brand">
-                <span class="brand-mark">CRS</span>
+                <span class="brand-mark">ZAC</span>
                 <div>
-                    <h1>Crime Reporting System</h1>
-                    <p>Global-grade digital reporting and case tracking.</p>
+                    <h1>Zaria Area Command HQ</h1>
+                    <p>Digital Reporting & Case Management Case Study · Kaduna State, Nigeria</p>
                 </div>
             </div>
             <nav>
@@ -38,9 +38,9 @@ $resolutionRate = $reportCount > 0 ? round(($resolvedReportCount / $reportCount)
         <section class="hero hero-landing">
             <div class="hero-copy container">
                 <div>
-                    <p class="eyebrow">Trustworthy, transparent, accountable</p>
+                    <p class="eyebrow">Zaria Area Command HQ · Case study prototype</p>
                     <h2>Report non-emergency incidents with confidence.</h2>
-                    <p>Submit a digital report, get a unique tracking reference, and monitor case handling through a secure police archive.</p>
+                    <p>Submit a non-emergency incident report, receive a unique tracking reference, and follow its handling within this Zaria Area Command HQ case study.</p>
                     <div class="hero-actions">
                         <a class="button" href="#report-form">Report Now</a>
                         <a class="button secondary" href="track_status.php">Track Status</a>
@@ -48,7 +48,7 @@ $resolutionRate = $reportCount > 0 ? round(($resolvedReportCount / $reportCount)
                 </div>
                 <div class="hero-panel">
                     <div class="panel-header">
-                        <p>Fast incident support</p>
+                        <p>Zaria Area Command HQ</p>
                         <h3>Digital filing for non-emergency cases</h3>
                     </div>
                     <ul class="stats-list">
@@ -64,13 +64,13 @@ $resolutionRate = $reportCount > 0 ? round(($resolvedReportCount / $reportCount)
             <div class="section-intro">
                 <p class="eyebrow">Resolution & performance</p>
                 <h2>Live statistics for public accountability</h2>
-                <p>See how the system is tracking incident throughput, active investigations, and case resolution progress.</p>
+                    <p>See how this case-study portal tracks incident intake, active investigations, and case-resolution progress.</p>
             </div>
             <div class="performance-grid">
                 <article class="performance-card">
                     <span class="metric-label">Reports submitted</span>
                     <strong><?php echo number_format($reportCount); ?></strong>
-                    <p>Citizens have filed reports through the digital incident portal.</p>
+                    <p>Reports filed through this Zaria Area Command HQ case-study portal.</p>
                 </article>
                 <article class="performance-card">
                     <span class="metric-label">Resolution rate</span>
@@ -80,7 +80,7 @@ $resolutionRate = $reportCount > 0 ? round(($resolvedReportCount / $reportCount)
                 <article class="performance-card">
                     <span class="metric-label">Active cases</span>
                     <strong><?php echo number_format($activeCaseCount); ?></strong>
-                    <p>Investigations currently being managed by officers.</p>
+                    <p>Investigations currently managed within the Area Command workflow.</p>
                 </article>
                 <article class="performance-card">
                     <span class="metric-label">Case records</span>
@@ -101,7 +101,7 @@ $resolutionRate = $reportCount > 0 ? round(($resolvedReportCount / $reportCount)
             </article>
             <article class="feature-card">
                 <h3>Insights & Reports</h3>
-                <p>Monitor crime data by category and location to support evidence-based policing decisions.</p>
+                    <p>Monitor incident categories and locations across Zaria to support evidence-based policing decisions.</p>
             </article>
         </section>
 
@@ -110,11 +110,11 @@ $resolutionRate = $reportCount > 0 ? round(($resolvedReportCount / $reportCount)
                 <aside class="report-intake-aside" aria-label="Reporting guidance">
                     <p class="eyebrow">Submit a report</p>
                     <h2>Non-emergency incident reporting</h2>
-                    <p class="report-intake-lede">File a clear incident report and receive a tracking reference for follow-up.</p>
+                    <p class="report-intake-lede">File a clear report for the Zaria Area Command HQ case study and receive a tracking reference for follow-up.</p>
 
                     <div class="emergency-notice">
                         <strong>For emergencies</strong>
-                        <span>Call your local emergency line or go to the nearest police station immediately.</span>
+                        <span>Use official emergency channels or go to the nearest police station immediately. This case-study portal is for non-emergency reporting only.</span>
                     </div>
 
                     <dl class="report-assurance-list">
@@ -170,6 +170,8 @@ $resolutionRate = $reportCount > 0 ? round(($resolvedReportCount / $reportCount)
                             <select name="category" required>
                                 <option value="" disabled selected>Select category</option>
                                 <option value="Theft">Theft</option>
+                                <option value="Burglary">Burglary</option>
+                                <option value="Assault">Assault</option>
                                 <option value="Vandalism">Vandalism</option>
                                 <option value="Harassment">Harassment</option>
                                 <option value="Suspicious Activity">Suspicious Activity</option>
@@ -203,8 +205,8 @@ $resolutionRate = $reportCount > 0 ? round(($resolvedReportCount / $reportCount)
 
     <footer class="footer footer-wide">
         <div class="container footer-inner">
-            <p>Built for secure, accountable case handling that meets international public safety standards.</p>
-            <small>&copy; <?php echo date('Y'); ?> Crime Reporting System</small>
+            <p>Zaria Area Command HQ, Kaduna State, Nigeria — digital reporting and case-management case study.</p>
+            <small>&copy; <?php echo date('Y'); ?> Academic prototype. Not an official Nigeria Police Force service.</small>
         </div>
     </footer>
 

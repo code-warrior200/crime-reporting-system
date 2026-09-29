@@ -16,18 +16,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([':username' => $username]);
         $user = $stmt->fetch();
 
-        if ($user && $user['account_status'] === 'Active' && password_verify($password, $user['password'])) {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['fullname'] = $user['fullname'];
-            $_SESSION['role'] = $user['role'];
-            // Store officer identifier for assignment checks
-            $_SESSION['username'] = $user['username'];
-            header('Location: dashboard.php');
-            exit;
+        if ($user && password_verify($password, $user['password'])) {
+            if ($user['account_status'] === 'Suspended') {
+                $error = 'Your account has been suspended. Please contact your supervisor for assistance.';
+            } else {
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['fullname'] = $user['fullname'];
+                $_SESSION['role'] = $user['role'];
+                // Store officer identifier for assignment checks
+                $_SESSION['username'] = $user['username'];
+                header('Location: dashboard.php');
+                exit;
+            }
         }
     }
 
-    $error = 'Invalid username or password.';
+    if ($error === '') {
+        $error = 'Invalid username or password.';
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -35,16 +41,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Officer Login</title>
+    <title>Zaria Area Command HQ | Officer Login</title>
     <link rel="stylesheet" href="../assets/css/styles.css">
 </head>
 <body>
     <div class="login-shell">
         <div class="login-panel card">
             <div class="panel-header">
-                <p class="eyebrow">Officer access</p>
-                <h1>Secure Login</h1>
-                <p>Access case records, update investigations, and review incident statistics.</p>
+                <p class="eyebrow">Zaria Area Command HQ · Case study</p>
+                <h1>Officer Portal Login</h1>
+                <p>Access case records, update investigations, and review local incident statistics.</p>
             </div>
             <?php if ($error): ?>
                 <div class="alert"><?php echo htmlspecialchars($error); ?></div>

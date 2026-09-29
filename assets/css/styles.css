@@ -10,6 +10,54 @@
     gap: 1.25rem;
 }
 
+.officer-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.officer-metric {
+    border: 1px solid #dbe4ee;
+    border-radius: 0.8rem;
+    padding: 1rem;
+    background: #f8fafc;
+}
+
+.officer-metric span,
+.officer-metric small {
+    display: block;
+    color: #64748b;
+}
+
+.officer-metric strong {
+    display: block;
+    margin: 0.15rem 0;
+    color: #0f172a;
+    font-size: 1.8rem;
+}
+
+.officer-metric--active {
+    border-color: #86efac;
+    background: #f0fdf4;
+}
+
+.officer-metric--suspended {
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+@media (max-width: 820px) {
+    .officer-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 480px) {
+    .officer-metrics {
+        grid-template-columns: 1fr;
+    }
+}
+
 .officer-create-form,
 .officer-edit-form {
     align-items: end;
@@ -17,6 +65,7 @@
 
 .officer-management-list {
     display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 1rem;
 }
 
@@ -52,6 +101,37 @@
 
 .officer-management-actions details {
     flex: 1 1 100%;
+}
+
+.officer-pagination,
+.officer-pagination-pages,
+.case-pagination,
+.case-pagination-pages {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.officer-page-link,
+.case-page-link {
+    display: grid;
+    place-items: center;
+    min-width: 2.4rem;
+    min-height: 2.4rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.55rem;
+    background: #fff;
+    color: #1e3a8a;
+    font-weight: 700;
+}
+
+.officer-page-link.is-current,
+.case-page-link.is-current {
+    border-color: #1d4ed8;
+    background: #1d4ed8;
+    color: #fff;
 }
 
 .officer-management-actions summary {

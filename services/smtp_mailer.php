@@ -16,7 +16,7 @@ class SmtpMailer
             'username' => '',
             'password' => '',
             'from_email' => '',
-            'from_name' => 'Crime Reporting System',
+        'from_name' => 'Zaria Area Command HQ Case Study',
             'timeout' => 15,
         ], $config);
     }
@@ -242,7 +242,7 @@ function loadSmtpConfig(): array
         'username' => getenv('SMTP_USERNAME') ?: '',
         'password' => getenv('SMTP_PASSWORD') ?: '',
         'from_email' => getenv('SMTP_FROM_EMAIL') ?: '',
-        'from_name' => getenv('SMTP_FROM_NAME') ?: 'Crime Reporting System',
+        'from_name' => getenv('SMTP_FROM_NAME') ?: 'Zaria Area Command HQ Case Study',
         'timeout' => 15,
     ];
 }

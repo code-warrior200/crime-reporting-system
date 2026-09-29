@@ -20,15 +20,15 @@ if ($reference) {
 <head >
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Track Report Status</title>
+    <title>Zaria Area Command HQ | Track Report</title>
     <link rel="stylesheet" href="../assets/css/styles.css">
 </head> 
 <body> 
     <main class="container card lookup-card">
          <div class="section-intro">
-             <p class="eyebrow">Report tracker</p>
+             <p class="eyebrow">Zaria Area Command HQ · Case study</p>
              <h2>Check the status of your incident</h2>
-             <p>Enter the reference code provided at submission to view the current report status and linked case details.</p>
+             <p>Enter the reference code provided at submission to view the current report status and linked case details in this case-study portal.</p>
         </div>
  
          <form class="form-grid" method="get" action="track_status.php">

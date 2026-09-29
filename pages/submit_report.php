@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 function sendReferenceEmail(string $to, string $fullname, string $reference, ?string &$error = null): bool
 {
     $error = null;
-    $subject = 'Your crime report tracking reference';
+    $subject = 'Zaria Area Command HQ case-study tracking reference';
     $trackUrl = 'http://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . dirname($_SERVER['PHP_SELF']) . '/track_status.php';
     $trackUrl = str_replace('\\', '/', $trackUrl);
     $trackUrl = preg_replace('#/+#', '/', $trackUrl);
@@ -18,11 +18,11 @@ function sendReferenceEmail(string $to, string $fullname, string $reference, ?st
     $trackUrl = preg_replace('#^https:/#', 'https://', $trackUrl);
 
     $message = "Dear {$fullname},\n\n";
-    $message .= "Your report has been received by the Crime Reporting System.\n\n";
+    $message .= "Your report has been received by the Zaria Area Command HQ digital reporting case study.\n\n";
     $message .= "Tracking reference code: {$reference}\n\n";
     $message .= "Use this code to check your report status here:\n{$trackUrl}\n\n";
     $message .= "Please keep this reference safe for follow-up.\n\n";
-    $message .= "Crime Reporting System";
+    $message .= "Zaria Area Command HQ Case Study\nKaduna State, Nigeria";
 
     $mailer = new SmtpMailer(loadSmtpConfig());
     $sent = $mailer->send($to, $fullname, $subject, $message);
@@ -96,6 +96,7 @@ $emailSent = sendReferenceEmail($email, $fullname, $reference, $emailError);
 </head>
 <body>
     <main class="container card success-card">
+        <p class="eyebrow">Zaria Area Command HQ · Case study</p>
         <h1>Report Submitted Successfully</h1>
         <p>Thank you, <strong><?php echo htmlspecialchars($fullname); ?></strong>.</p>
         <p>Your incident has been logged with reference:</p>

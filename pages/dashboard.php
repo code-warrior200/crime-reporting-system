@@ -65,6 +65,11 @@ function canManageOfficers(string $role): bool
     return isSupervisor($role);
 }
 
+function canEditOwnProfile(string $role): bool
+{
+    return in_array($role, ['officer', 'detective'], true);
+}
+
 function officerManagementRoles(): array
 {
     return ['officer', 'detective'];
@@ -161,6 +166,26 @@ $officers = safeFetchAll($pdo, "SELECT username, fullname, role FROM users WHERE
 $staffMembers = canManageOfficers($currentRole)
     ? safeFetchAll($pdo, "SELECT id, username, fullname, role, account_status FROM users WHERE role IN ('officer','detective') ORDER BY fullname")
     : [];
+$staffMetrics = [
+    'total' => count($staffMembers),
+    'active' => 0,
+    'suspended' => 0,
+];
+foreach ($staffMembers as $staffMember) {
+    if (($staffMember['account_status'] ?? '') === 'Suspended') {
+        $staffMetrics['suspended']++;
+    } else {
+        $staffMetrics['active']++;
+    }
+}
+$staffMetrics['active_rate'] = $staffMetrics['total'] > 0
+    ? (int) round(($staffMetrics['active'] / $staffMetrics['total']) * 100)
+    : 0;
+$officersPerPage = 10;
+$officerPageCount = max(1, (int) ceil($staffMetrics['total'] / $officersPerPage));
+$officerPage = max(1, (int) ($_GET['officer_page'] ?? 1));
+$officerPage = min($officerPage, $officerPageCount);
+$staffMembersForDisplay = array_slice($staffMembers, ($officerPage - 1) * $officersPerPage, $officersPerPage);
 $officerNames = [];
 foreach ($officers as $officer) {
     $officerNames[$officer['username']] = $officer['fullname'];
@@ -244,6 +269,18 @@ $filteredCases = array_values(array_filter($visibleCases, function (array $caseI
     return $matchesSearch && $matchesStatus;
 }));
 $caseRecordsForDisplay = canSeeCaseRecords($currentRole) ? $filteredCases : [];
+$casesPerPage = 10;
+$casePageCount = max(1, (int) ceil(count($caseRecordsForDisplay) / $casesPerPage));
+$casePage = max(1, (int) ($_GET['case_page'] ?? 1));
+$casePage = min($casePage, $casePageCount);
+$caseRecordsForCurrentPage = array_slice($caseRecordsForDisplay, ($casePage - 1) * $casesPerPage, $casesPerPage);
+$casePaginationParams = [
+    'search' => $searchQuery,
+    'case_status' => $caseStatusFilter,
+    'report_status' => $reportStatusFilter,
+    'start_date' => $filterStartDate,
+    'end_date' => $filterEndDate,
+];
 $caseUpdatesForDisplay = canSeeCaseRecords($currentRole) ? $visibleUpdates : [];
 $latestUpdatesByCase = [];
 foreach ($visibleUpdates as $update) {
@@ -256,7 +293,52 @@ foreach ($visibleUpdates as $update) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
-    if ($action === 'create_officer' && canManageOfficers($currentRole)) {
+    if ($action === 'update_my_profile' && canEditOwnProfile($currentRole)) {
+        $username = trim($_POST['username'] ?? '');
+        $fullname = trim($_POST['fullname'] ?? '');
+        $newPassword = $_POST['new_password'] ?? '';
+
+        if ($username === '' || $fullname === '' || ($newPassword !== '' && strlen($newPassword) < 8)) {
+            $_SESSION['profile_message'] = 'Enter a name and officer ID. A replacement password must contain at least 8 characters.';
+        } else {
+            try {
+                $pdo->beginTransaction();
+                if ($newPassword !== '') {
+                    $stmt = $pdo->prepare("UPDATE users SET username = :username, fullname = :fullname, password = :password WHERE id = :id AND role IN ('officer','detective') AND account_status = 'Active'");
+                    $stmt->execute([
+                        ':username' => $username,
+                        ':fullname' => $fullname,
+                        ':password' => password_hash($newPassword, PASSWORD_DEFAULT),
+                        ':id' => $_SESSION['user_id'],
+                    ]);
+                } else {
+                    $stmt = $pdo->prepare("UPDATE users SET username = :username, fullname = :fullname WHERE id = :id AND role IN ('officer','detective') AND account_status = 'Active'");
+                    $stmt->execute([
+                        ':username' => $username,
+                        ':fullname' => $fullname,
+                        ':id' => $_SESSION['user_id'],
+                    ]);
+                }
+
+                if ($currentOfficerUsername !== $username) {
+                    $caseStmt = $pdo->prepare('UPDATE cases SET assigned_officer = :username WHERE assigned_officer = :previous_username');
+                    $caseStmt->execute([':username' => $username, ':previous_username' => $currentOfficerUsername]);
+                    $notificationStmt = $pdo->prepare('UPDATE case_assignment_notifications SET recipient_username = :username WHERE recipient_username = :previous_username');
+                    $notificationStmt->execute([':username' => $username, ':previous_username' => $currentOfficerUsername]);
+                }
+
+                $pdo->commit();
+                $_SESSION['username'] = $username;
+                $_SESSION['fullname'] = $fullname;
+                $_SESSION['profile_message'] = 'Your profile has been updated.';
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                $_SESSION['profile_message'] = 'Your officer ID may already be in use. Your profile was not updated.';
+            }
+        }
+    } elseif ($action === 'create_officer' && canManageOfficers($currentRole)) {
         $username = trim($_POST['username'] ?? '');
         $fullname = trim($_POST['fullname'] ?? '');
         $password = $_POST['password'] ?? '';
@@ -277,52 +359,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['officer_admin_message'] = 'Officer account created.';
             } catch (PDOException $e) {
                 $_SESSION['officer_admin_message'] = 'That officer ID is already in use.';
-            }
-        }
-    } elseif ($action === 'update_officer' && canManageOfficers($currentRole)) {
-        $officerId = (int) ($_POST['officer_id'] ?? 0);
-        $username = trim($_POST['username'] ?? '');
-        $fullname = trim($_POST['fullname'] ?? '');
-        $role = strtolower(trim($_POST['role'] ?? 'officer'));
-        $newPassword = $_POST['new_password'] ?? '';
-
-        if ($officerId <= 0 || $username === '' || $fullname === '' || !in_array($role, officerManagementRoles(), true) || ($newPassword !== '' && strlen($newPassword) < 8)) {
-            $_SESSION['officer_admin_message'] = 'Enter valid officer details. A replacement password must contain at least 8 characters.';
-        } else {
-            $memberStmt = $pdo->prepare("SELECT id, username FROM users WHERE id = :id AND role IN ('officer','detective') LIMIT 1");
-            $memberStmt->execute([':id' => $officerId]);
-            $member = $memberStmt->fetch();
-
-            if (!$member) {
-                $_SESSION['officer_admin_message'] = 'Officer account not found.';
-            } else {
-                try {
-                    if ($newPassword !== '') {
-                        $stmt = $pdo->prepare('UPDATE users SET username = :username, fullname = :fullname, role = :role, password = :password WHERE id = :id');
-                        $stmt->execute([
-                            ':username' => $username,
-                            ':fullname' => $fullname,
-                            ':role' => $role,
-                            ':password' => password_hash($newPassword, PASSWORD_DEFAULT),
-                            ':id' => $officerId,
-                        ]);
-                    } else {
-                        $stmt = $pdo->prepare('UPDATE users SET username = :username, fullname = :fullname, role = :role WHERE id = :id');
-                        $stmt->execute([
-                            ':username' => $username,
-                            ':fullname' => $fullname,
-                            ':role' => $role,
-                            ':id' => $officerId,
-                        ]);
-                    }
-                    if ($member['username'] !== $username) {
-                        $caseStmt = $pdo->prepare('UPDATE cases SET assigned_officer = :username WHERE assigned_officer = :previous_username');
-                        $caseStmt->execute([':username' => $username, ':previous_username' => $member['username']]);
-                    }
-                    $_SESSION['officer_admin_message'] = 'Officer information updated.';
-                } catch (PDOException $e) {
-                    $_SESSION['officer_admin_message'] = 'That officer ID is already in use.';
-                }
             }
         }
     } elseif ($action === 'toggle_officer_suspension' && canManageOfficers($currentRole)) {
@@ -603,22 +639,24 @@ if (count($visibleCases) > 0) {
 }
 $officerAdminMessage = $_SESSION['officer_admin_message'] ?? '';
 unset($_SESSION['officer_admin_message']);
+$profileMessage = $_SESSION['profile_message'] ?? '';
+unset($_SESSION['profile_message']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Officer Dashboard</title>
+    <title>Zaria Area Command HQ | Officer Dashboard</title>
     <link rel="stylesheet" href="../assets/css/styles.css">
 </head>
 <body>
     <header class="site-header dashboard-header">
         <div class="header-inner container dashboard-topbar">
             <div>
-                <p class="eyebrow">Officer portal</p>
+                <p class="eyebrow">Zaria Area Command HQ · Kaduna State, Nigeria</p>
                 <h1>Case Management Dashboard</h1>
-                <p>Manage investigations, assign evidence, and generate crime reports from a secure officer console.</p>
+                <p>Case-study officer portal for managing investigations, evidence, and local incident reports.</p>
             </div>
             <div class="header-actions">
                 <div class="user-pill">
@@ -668,6 +706,39 @@ unset($_SESSION['officer_admin_message']);
         </section>
         <?php endif; ?>
 
+        <?php if (canEditOwnProfile($currentRole)): ?>
+        <section class="card personal-profile-card" aria-labelledby="personal-profile-title">
+            <div class="section-header">
+                <div>
+                    <p class="eyebrow">My account</p>
+                    <h2 id="personal-profile-title">Update your information</h2>
+                </div>
+                <p class="table-note">Only you can update your name, officer ID, or password.</p>
+            </div>
+            <?php if ($profileMessage): ?>
+                <div class="alert"><?php echo htmlspecialchars($profileMessage); ?></div>
+            <?php endif; ?>
+            <form method="post" action="dashboard.php" class="form-grid personal-profile-form">
+                <input type="hidden" name="action" value="update_my_profile">
+                <label>
+                    Full name
+                    <input type="text" name="fullname" value="<?php echo htmlspecialchars($_SESSION['fullname']); ?>" maxlength="100" required>
+                </label>
+                <label>
+                    Officer ID
+                    <input type="text" name="username" value="<?php echo htmlspecialchars($_SESSION['username']); ?>" maxlength="50" required>
+                </label>
+                <label>
+                    New password <small>(optional)</small>
+                    <input type="password" name="new_password" minlength="8">
+                </label>
+                <div class="form-actions">
+                    <button type="submit" class="button">Save my information</button>
+                </div>
+            </form>
+        </section>
+        <?php endif; ?>
+
         <section class="dashboard-hero card">
             <div class="hero-copy">
                 <p class="eyebrow">Overview</p>
@@ -707,12 +778,35 @@ unset($_SESSION['officer_admin_message']);
                     <p class="eyebrow">Supervisor controls</p>
                     <h2 id="officer-management-title">Officer management</h2>
                 </div>
-                <p class="table-note">Create, update, suspend, reinstate, or remove officer and detective accounts.</p>
+                <p class="table-note">Create, suspend, reinstate, or remove officer and detective accounts.</p>
             </div>
 
             <?php if ($officerAdminMessage): ?>
                 <div class="alert"><?php echo htmlspecialchars($officerAdminMessage); ?></div>
             <?php endif; ?>
+
+            <div class="officer-metrics" aria-label="Officer account metrics">
+                <article class="officer-metric">
+                    <span>Total officers</span>
+                    <strong><?php echo $staffMetrics['total']; ?></strong>
+                    <small>Officer and detective accounts</small>
+                </article>
+                <article class="officer-metric officer-metric--active">
+                    <span>Active</span>
+                    <strong><?php echo $staffMetrics['active']; ?></strong>
+                    <small>Can access the officer portal</small>
+                </article>
+                <article class="officer-metric officer-metric--suspended">
+                    <span>Suspended</span>
+                    <strong><?php echo $staffMetrics['suspended']; ?></strong>
+                    <small>Access is currently disabled</small>
+                </article>
+                <article class="officer-metric">
+                    <span>Active rate</span>
+                    <strong><?php echo $staffMetrics['active_rate']; ?>%</strong>
+                    <small>Of all managed accounts</small>
+                </article>
+            </div>
 
             <form method="post" action="dashboard.php" class="form-grid officer-create-form">
                 <input type="hidden" name="action" value="create_officer">
@@ -741,7 +835,7 @@ unset($_SESSION['officer_admin_message']);
             </form>
 
             <div class="officer-management-list">
-                <?php foreach ($staffMembers as $member): ?>
+                <?php foreach ($staffMembersForDisplay as $member): ?>
                 <article class="officer-management-item">
                     <div class="officer-management-summary">
                         <div>
@@ -751,35 +845,6 @@ unset($_SESSION['officer_admin_message']);
                         <span class="officer-status officer-status--<?php echo strtolower($member['account_status']); ?>"><?php echo htmlspecialchars($member['account_status']); ?></span>
                     </div>
                     <div class="officer-management-actions">
-                        <details>
-                            <summary>Edit officer</summary>
-                            <form method="post" action="dashboard.php" class="form-grid officer-edit-form">
-                                <input type="hidden" name="action" value="update_officer">
-                                <input type="hidden" name="officer_id" value="<?php echo (int) $member['id']; ?>">
-                                <label>
-                                    Full name
-                                    <input type="text" name="fullname" value="<?php echo htmlspecialchars($member['fullname']); ?>" maxlength="100" required>
-                                </label>
-                                <label>
-                                    Officer ID
-                                    <input type="text" name="username" value="<?php echo htmlspecialchars($member['username']); ?>" maxlength="50" required>
-                                </label>
-                                <label>
-                                    Role
-                                    <select name="role" required>
-                                        <option value="officer" <?php echo $member['role'] === 'officer' ? 'selected' : ''; ?>>Officer</option>
-                                        <option value="detective" <?php echo $member['role'] === 'detective' ? 'selected' : ''; ?>>Detective</option>
-                                    </select>
-                                </label>
-                                <label>
-                                    New password <small>(optional)</small>
-                                    <input type="password" name="new_password" minlength="8">
-                                </label>
-                                <div class="form-actions">
-                                    <button type="submit" class="button secondary">Save changes</button>
-                                </div>
-                            </form>
-                        </details>
                         <form method="post" action="dashboard.php">
                             <input type="hidden" name="action" value="toggle_officer_suspension">
                             <input type="hidden" name="officer_id" value="<?php echo (int) $member['id']; ?>">
@@ -798,6 +863,22 @@ unset($_SESSION['officer_admin_message']);
                     <p class="empty-note">No officer or detective accounts have been added.</p>
                 <?php endif; ?>
             </div>
+            <?php if ($officerPageCount > 1): ?>
+            <nav class="officer-pagination" aria-label="Officer list pages">
+                <span class="officer-pagination-summary">Page <?php echo $officerPage; ?> of <?php echo $officerPageCount; ?> · 10 per page</span>
+                <?php if ($officerPage > 1): ?>
+                    <a class="button secondary small" href="dashboard.php?officer_page=<?php echo $officerPage - 1; ?>">Previous</a>
+                <?php endif; ?>
+                <div class="officer-pagination-pages">
+                    <?php for ($pageNumber = 1; $pageNumber <= $officerPageCount; $pageNumber++): ?>
+                        <a class="officer-page-link <?php echo $pageNumber === $officerPage ? 'is-current' : ''; ?>" href="dashboard.php?officer_page=<?php echo $pageNumber; ?>" <?php echo $pageNumber === $officerPage ? 'aria-current="page"' : ''; ?>><?php echo $pageNumber; ?></a>
+                    <?php endfor; ?>
+                </div>
+                <?php if ($officerPage < $officerPageCount): ?>
+                    <a class="button secondary small" href="dashboard.php?officer_page=<?php echo $officerPage + 1; ?>">Next</a>
+                <?php endif; ?>
+            </nav>
+            <?php endif; ?>
         </section>
         <?php endif; ?>
 
@@ -1016,7 +1097,7 @@ unset($_SESSION['officer_admin_message']);
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($caseRecordsForDisplay as $case): ?>
+                            <?php foreach ($caseRecordsForCurrentPage as $case): ?>
                                 <tr>
                                     <td><?php echo htmlspecialchars($case['case_code']); ?></td>
                                     <td><?php echo htmlspecialchars($case['title']); ?></td>
@@ -1038,6 +1119,22 @@ unset($_SESSION['officer_admin_message']);
                         </tbody>
                     </table>
                 </div>
+                <?php if ($casePageCount > 1): ?>
+                <nav class="case-pagination" aria-label="Case records pages">
+                    <span class="case-pagination-summary">Page <?php echo $casePage; ?> of <?php echo $casePageCount; ?> · 10 per page</span>
+                    <?php if ($casePage > 1): ?>
+                        <a class="button secondary small" href="dashboard.php?<?php echo htmlspecialchars(http_build_query(array_merge($casePaginationParams, ['case_page' => $casePage - 1]))); ?>">Previous</a>
+                    <?php endif; ?>
+                    <div class="case-pagination-pages">
+                        <?php for ($pageNumber = 1; $pageNumber <= $casePageCount; $pageNumber++): ?>
+                            <a class="case-page-link <?php echo $pageNumber === $casePage ? 'is-current' : ''; ?>" href="dashboard.php?<?php echo htmlspecialchars(http_build_query(array_merge($casePaginationParams, ['case_page' => $pageNumber]))); ?>" <?php echo $pageNumber === $casePage ? 'aria-current="page"' : ''; ?>><?php echo $pageNumber; ?></a>
+                        <?php endfor; ?>
+                    </div>
+                    <?php if ($casePage < $casePageCount): ?>
+                        <a class="button secondary small" href="dashboard.php?<?php echo htmlspecialchars(http_build_query(array_merge($casePaginationParams, ['case_page' => $casePage + 1]))); ?>">Next</a>
+                    <?php endif; ?>
+                </nav>
+                <?php endif; ?>
             <?php endif; ?>
         </section>
 
